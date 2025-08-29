@@ -1,0 +1,114 @@
+name: Dbus - Build aarch64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dev
+      - dev-arm64-build
+      - pre*
+    paths:
+      - "apps/**"
+      - ".github/workflows/build-apps-aarch64.yml"
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: short
+  RUSTUP_MAX_RETRIES: 10
+  MACOSX_DEPLOYMENT_TARGET: 10.7
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+  MECHA_PULP_USERNAME: ${{ secrets.MECHA_PULP_USERNAME }}
+  MECHA_PULP_PASSWORD: ${{ secrets.MECHA_PULP_PASSWORD }}
+  MECHA_PULP_API_URL: ${{ vars.MECHA_PULP_API_URL }}
+  MECHA_PULP_DEBS_REPOSITORY_NAME: ${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: bluez
+            package: bluez
+            artifact: bluez-aarch64-unknown-linux-gnu.tar.gz
+            path: dbus/freedesktop
+            folder: bluez
+
+          - name: networkmanager
+            package: networkmanager
+            artifact: networkmanager-aarch64-unknown-linux-gnu.tar.gz
+            path: dbus/freedesktop
+            folder: networkmanager
+
+          - name: pulseaudio
+            package: pulseaudio
+            artifact: pulseaudio-aarch64-unknown-linux-gnu.tar.gz
+            path: dbus/freedesktop
+            folder: pulseaudio
+
+          - name: upower
+            package: upower
+            artifact: upower-aarch64-unknown-linux-gnu.tar.gz
+            path: dbus/freedesktop
+            folder: upower
+
+          - name: mxconf
+            package: mxconf
+            artifact: mxconf-aarch64-unknown-linux-gnu.tar.gz
+            path: dbus/mechanix
+            folder: mxconf_dbus
+
+    # If ARM runners are available, use them; else use x86 with QEMU emulation
+    runs-on: ${{ github.ref == 'refs/heads/main' && 'ubicloud-standard-2-arm' || 'ubuntu-latest' }}
+
+    steps:
+      - name: Setup | Checkout
+        uses: actions/checkout@v4
+
+      # Enable QEMU for ARM64 emulation
+      - name: Set up QEMU
+        if: runner.arch != 'ARM64'
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        if: runner.arch != 'ARM64'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build inside ARM64 container (if x86 host)
+        if: runner.arch != 'ARM64'
+        run: |
+          docker run --rm \
+            --platform linux/arm64 \
+            -v $PWD:/work -w /work \
+            debian:bookworm \
+            bash -c "
+              apt-get update && \
+              apt-get install -y curl pkg-config libdbus-1-dev libpam0g-dev libclang-dev protobuf-compiler libpulse-dev libunwind-dev \
+                                 libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev \
+                                 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+                                 gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x \
+                                 gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio \
+                                 python3-pip python3-venv jq git build-essential && \
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+              source /root/.cargo/env && \
+              rustup default 1.85.0 && \
+              cargo install cargo-deb && \
+              cd ${{ matrix.path }} && \
+              cargo build --release --package ${{ matrix.package }} && \
+              mkdir -p /work/build && \
+              cp target/release/${{ matrix.package }} /work/build/
+            "
+
+      - name: Native build (if ARM runner)
+        if: runner.arch == 'ARM64'
+        run: |
+          cd ${{ matrix.path }}
+          cargo fetch
+          cargo build --release --package ${{ matrix.package }}
+          mkdir -p build
+          cp target/release/${{ matrix.package }} ./build
