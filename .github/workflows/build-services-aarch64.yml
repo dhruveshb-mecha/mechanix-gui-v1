@@ -1,4 +1,5 @@
 name: Services - Build aarch64
+
 on:
   workflow_dispatch:
   push:
@@ -17,10 +18,14 @@ env:
   RUST_BACKTRACE: short
   RUSTUP_MAX_RETRIES: 10
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+
   MECHA_PULP_USERNAME: ${{ secrets.MECHA_PULP_USERNAME }}
   MECHA_PULP_PASSWORD: ${{ secrets.MECHA_PULP_PASSWORD }}
   MECHA_PULP_API_URL: ${{ vars.MECHA_PULP_API_URL }}
+
   MECHA_PULP_DEBS_REPOSITORY_NAME: ${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}
+  MECHA_PULP_RPMS_REPOSITORY_NAME: ${{ vars.MECHA_PULP_RPMS_REPOSITORY_NAME }}
+
 jobs:
   build:
     name: ${{ matrix.name }}
@@ -30,18 +35,24 @@ jobs:
         include:
           - name: conf service for mechanix
             package: mxconf
+            path: services/conf
           - name: session dbus service
             package: mechanix-session-service
+            path: services/session
           - name: search service
             package: mxsearch
+            path: services/search/server
           - name: system dbus service
             package: mechanix-system-service
+            path: services/system
           - name: extension service
             package: mechanix-extension-service
+            path: services/extensions
 
     runs-on: ubicloud-standard-2-arm
     environment: pre-release
     continue-on-error: true
+
     steps:
       - name: Setup | Checkout
         uses: actions/checkout@v4
@@ -51,42 +62,43 @@ jobs:
         with:
           toolchain: 1.85.0
 
-      - name: Install cargo-deb
-        run: cargo install cargo-deb
+      - name: Install cargo tools
+        run: |
+          cargo install cargo-deb
+          cargo install cargo-generate-rpm
 
       - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y \
+            fakeroot \
             libdbus-1-dev \
             libpulse-dev \
             libpam0g-dev \
             libclang-dev
 
-      # Pulp CLI setup
       - name: Setup | Pulp CLI
         run: |
           pipx install --force pulp-cli[pygments]
-          pipx inject pulp-cli pulp-cli-deb
+          pipx inject pulp-cli pulp-cli-deb pulp-cli-rpm
 
       - name: Setup | Pulp CLI Configuration
         run: |
           set -euo pipefail
+
           if [[ -z "$MECHA_PULP_API_URL" ]]; then
             echo "[ERROR] MECHA_PULP_API_URL is empty."
             exit 1
           fi
-          # Construct full Pulp API URL (add port)
+
           PULP_API_URL="${MECHA_PULP_API_URL}:8080"
           echo "[INFO] Using Pulp base URL: $PULP_API_URL"
 
-          # Configure Pulp CLI using the correct env vars
           pulp config create \
             --username "$MECHA_PULP_USERNAME" \
             --password "$MECHA_PULP_PASSWORD" \
             --base-url "$PULP_API_URL" \
             --overwrite
-
       - name: Set up Git SSH key
         run: |
           mkdir -p ~/.ssh
@@ -96,60 +108,77 @@ jobs:
 
       - name: Build [${{ matrix.package }}]
         run: |
-          cargo --config net.git-fetch-with-cli=true fetch
+          cargo fetch
           cargo build --release --package ${{ matrix.package }}
-          ls -la target/release
 
       - name: Package deb [${{ matrix.package }}]
         run: |
           cargo deb --no-build --package ${{ matrix.package }}
-          ls -la target/debian
 
       - name: Repack DEB natively [${{ matrix.package }}]
         run: |
           set -euo pipefail
           DEB_FILE=$(ls target/debian/${{ matrix.package }}_*.deb | head -n1)
-          echo "[INFO] Repacking: $DEB_FILE"
 
           TMPDIR=$(mktemp -d)
           trap 'rm -rf "$TMPDIR"' EXIT
 
-          # Extract & repack under fakeroot
           fakeroot dpkg-deb -R "$DEB_FILE" "$TMPDIR/pkg"
-          fakeroot dpkg-deb -b "$TMPDIR/pkg" "$DEB_FILE"  
+          fakeroot dpkg-deb -b "$TMPDIR/pkg" "$DEB_FILE"
 
-          echo "[INFO] ✅ Repacked: $DEB_FILE"
+      - name: Generate RPM [${{ matrix.package }}]
+        run: |
+          set -euo pipefail
+          echo "[INFO] Generating RPM from ${{ matrix.path }}"
+          cargo generate-rpm -p "$(pwd)/${{ matrix.path }}"
+          ls -la target/generate-rpm
 
       - name: Prepare artifacts [${{ matrix.package }}]
         run: |
           mkdir -p build
-          cp target/release/${{ matrix.package }} ./build || true
-          cp target/debian/${{ matrix.package }}_*.deb ./build
+          cp target/debian/${{ matrix.package }}_*.deb build/
+          cp target/generate-rpm/*.rpm build/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.package }}-artifacts
-          path: ./build/*
+          path: build/*
 
-      - name: Publish to Pulp [${{ matrix.package }}]
+      - name: Publish DEB to Pulp [${{ matrix.package }}]
         run: |
           set -euo pipefail
           DEB_FILE=$(ls target/debian/${{ matrix.package }}_*.deb | head -n1)
-          echo "[INFO] Uploading: $DEB_FILE"
+
           pulp deb content upload \
-            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
+            --repository="$MECHA_PULP_DEBS_REPOSITORY_NAME" \
             --file="$DEB_FILE"
 
-          echo "[INFO] Creating publication..."
           PUB_HREF=$(pulp deb publication create \
-            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
+            --repository="$MECHA_PULP_DEBS_REPOSITORY_NAME" \
             | jq -r '.pulp_href')
 
-          echo "[INFO] Updating distribution..."
           pulp deb distribution update \
-            --name="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-            --base-path="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}"
+            --name="$MECHA_PULP_DEBS_REPOSITORY_NAME" \
+            --publication="$PUB_HREF"
 
-          echo "[INFO] ✅ Package ${{ matrix.package }} published."
+      - name: Publish RPM to Pulp [${{ matrix.package }}]
+        run: |
+          set -euo pipefail
+
+          for RPM in target/generate-rpm/*.rpm; do
+            pulp rpm content upload \
+              --repository="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
+              --file="$RPM"
+          done
+
+          PUB_TASK=$(pulp rpm publication create \
+            --repository="$MECHA_PULP_RPMS_REPOSITORY_NAME")
+
+          PUB_HREF=$(echo "$PUB_TASK" | jq -r '.pulp_href')
+
+          pulp rpm distribution update \
+            --name="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
+            --publication="$PUB_HREF"
+
+          echo "[INFO] ✅ RPM published for ${{ matrix.package }}"
