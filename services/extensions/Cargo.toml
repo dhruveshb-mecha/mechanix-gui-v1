@@ -10,11 +10,11 @@ categories.workspace = true
 keywords.workspace = true
 
 [dependencies]
-tokio = {workspace = true}
-extensions = {path = "../../dbus/mechanix/extensions"}
+tokio = { workspace = true }
+extensions = { path = "../../dbus/mechanix/extensions" }
 anyhow = { workspace = true }
 log = { workspace = true }
-env_logger = {workspace = true}
+env_logger = { workspace = true }
 
 [package.metadata.deb]
 maintainer = "Sandeep Patel <mineshp@mechasystems.com>"
@@ -30,4 +30,13 @@ assets = [
         "usr/bin/",
         "755",
     ],
+]
+
+[package.metadata.generate-rpm]
+summary = "Detection Service for the Mechanix Extensions"
+license = "MIT" # or workspace override if you have one
+auto-req = "yes"
+assets = [
+    # Binary
+    { source = "../../target/release/mechanix-extension-service", dest = "/usr/bin/mechanix-extension-service", mode = "755" },
 ]
