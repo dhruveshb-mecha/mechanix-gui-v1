@@ -49,7 +49,7 @@ jobs:
             package: mechanix-extension-service
             path: services/extensions
 
-    runs-on: ubicloud-standard-2-arm
+    runs-on: ubuntu-24.04-arm
     environment: pre-release
     continue-on-error: true
 
