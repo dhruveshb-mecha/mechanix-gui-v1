@@ -75,7 +75,8 @@ jobs:
             libdbus-1-dev \
             libpulse-dev \
             libpam0g-dev \
-            libclang-dev
+            libclang-dev \
+            librust-gdk-pixbuf-sys-dev
 
       - name: Setup | Pulp CLI
         run: |
