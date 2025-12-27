@@ -145,11 +145,19 @@ jobs:
           name: ${{ matrix.package }}-artifacts
           path: build/*
 
-      - name: Publish to Pulp [${{ matrix.package }}]
+      - name: Publish to Pulp ${{ matrix.package }}
         run: |
           set -euo pipefail
-          DEB_FILE=$(ls target/debian/${{ matrix.package }}_*.deb | head -n1)
-          echo "[INFO] Uploading: $DEB_FILE"
+
+          DEB_FILE=$(find ./build -name "${{ matrix.package }}*.deb" -type f | head -n1)
+
+          if [ -z "$DEB_FILE" ]; then
+            echo "[ERROR] No .deb file found for ${{ matrix.package }}"
+            exit 1
+          fi
+
+          echo "[INFO] 📦 Publishing: $DEB_FILE"
+
           pulp deb content upload \
             --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
             --file="$DEB_FILE"
@@ -157,6 +165,7 @@ jobs:
           echo "[INFO] Creating publication..."
           PUB_HREF=$(pulp deb publication create \
             --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
+            --signing-service=mecha-pkg-sign \
             | jq -r '.pulp_href')
 
           echo "[INFO] Updating distribution..."
@@ -165,7 +174,7 @@ jobs:
             --base-path="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
             --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}"
 
-          echo "[INFO] ✅ Package ${{ matrix.package }} published."
+          echo "[INFO] ✅ Package ${{ matrix.package }} published successfully!"
 
       - name: Publish RPM to Pulp [${{ matrix.package }}]
         run: |
