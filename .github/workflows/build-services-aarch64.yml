@@ -37,7 +37,7 @@ jobs:
             package: mxconf
             path: services/conf
           - name: session dbus service
-            package: mechanix-session-service
+            package: session_service
             path: services/session
           - name: search service
             package: mxsearch
