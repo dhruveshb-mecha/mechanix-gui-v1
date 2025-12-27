@@ -184,6 +184,7 @@ jobs:
 
           pulp rpm distribution update \
             --name="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
-            --publication="$PUB_HREF"
+            --base-path="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
+            --repository="$MECHA_PULP_RPMS_REPOSITORY_NAME"
 
           echo "[INFO] ✅ RPM published for ${{ matrix.package }}"
