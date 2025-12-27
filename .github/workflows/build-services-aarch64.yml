@@ -80,7 +80,7 @@ jobs:
       - name: Setup | Pulp CLI
         run: |
           pipx install --force pulp-cli[pygments]
-          pipx inject pulp-cli pulp-cli-deb pulp-cli-rpm
+          pipx inject pulp-cli pulp-cli-deb pulp_rpm
 
       - name: Setup | Pulp CLI Configuration
         run: |
