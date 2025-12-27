@@ -145,22 +145,27 @@ jobs:
           name: ${{ matrix.package }}-artifacts
           path: build/*
 
-      - name: Publish DEB to Pulp [${{ matrix.package }}]
+      - name: Publish to Pulp [${{ matrix.package }}]
         run: |
           set -euo pipefail
           DEB_FILE=$(ls target/debian/${{ matrix.package }}_*.deb | head -n1)
-
+          echo "[INFO] Uploading: $DEB_FILE"
           pulp deb content upload \
-            --repository="$MECHA_PULP_DEBS_REPOSITORY_NAME" \
+            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
             --file="$DEB_FILE"
 
+          echo "[INFO] Creating publication..."
           PUB_HREF=$(pulp deb publication create \
-            --repository="$MECHA_PULP_DEBS_REPOSITORY_NAME" \
+            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
             | jq -r '.pulp_href')
 
+          echo "[INFO] Updating distribution..."
           pulp deb distribution update \
-            --name="$MECHA_PULP_DEBS_REPOSITORY_NAME" \
-            --publication="$PUB_HREF"
+            --name="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
+            --base-path="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
+            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}"
+
+          echo "[INFO] ✅ Package ${{ matrix.package }} published."
 
       - name: Publish RPM to Pulp [${{ matrix.package }}]
         run: |
