@@ -137,6 +137,11 @@ jobs:
           flutter-elinux pub get
           flutter-elinux build elinux --release
 
+      # Fix script permissions
+      - name: Fix NuShell script permissions
+        run: |
+          chmod +x apps/*.nu
+
       # Move entire bundle to ./build/<binary>
       - name: Prepare build folder ${{ matrix.name }}
         run: |
@@ -163,7 +168,7 @@ jobs:
       - name: Setup | Pulp CLI
         run: |
           pipx install --force pulp-cli[pygments]
-          pipx inject pulp-cli pulp-cli-deb 
+          pipx inject pulp-cli pulp-cli-deb
 
       - name: Configure Pulp CLI
         run: |
@@ -221,4 +226,3 @@ jobs:
             ./build/${{ matrix.binary }}/
             ./build/deb/*.deb
             ./build/rpm/*.rpm
-
