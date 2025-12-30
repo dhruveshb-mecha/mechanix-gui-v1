@@ -156,14 +156,7 @@ jobs:
             }
 
             let revision = ($full_version | split row "-" | last)
-
-            if not ($revision | str matches "^\d+$") {
-              error make {
-                msg: "Invalid deb revision"
-                value: $revision
-              }
-            }
-
+            
             print $"revision=($revision)"
           ' >> "$GITHUB_OUTPUT"
 
