@@ -22,6 +22,7 @@ env:
   MECHA_PULP_PASSWORD: ${{ secrets.MECHA_PULP_PASSWORD }}
   MECHA_PULP_API_URL: ${{ vars.MECHA_PULP_API_URL }}
   MECHA_PULP_DEBS_REPOSITORY_NAME: ${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}
+  MECHA_PULP_RPMS_REPOSITORY_NAME: ${{ vars.MECHA_PULP_RPMS_REPOSITORY_NAME }}
 
 jobs:
   build:
@@ -114,7 +115,7 @@ jobs:
       - name: Setup | Pulp CLI
         run: |
           pipx install --force pulp-cli[pygments]
-          pipx inject pulp-cli pulp-cli-deb
+          pipx inject pulp-cli pulp-cli-deb pulp_rpm
 
       - name: Setup | Pulp CLI Configuration
         run: |
@@ -186,7 +187,7 @@ jobs:
       - name: Package deb ${{ matrix.package }}
         run: |
           sudo apt install -y fakeroot
-          fakeroot cargo deb --deb-revision "${{ steps.version_info.outputs.revision }}" --no-build --package ${{ matrix.package }}
+          fakeroot cargo deb --deb-revision "${{ steps.version_info.outputs.deb_revision }}" --no-build --package ${{ matrix.package }}
           ls -la target/debian
 
       - name: Repack DEB natively [${{ matrix.package }}]
@@ -215,9 +216,11 @@ jobs:
 
       - name: Prepare artifacts ${{ matrix.package }}
         run: |
-          mkdir -p build
-          cp target/release/${{ matrix.package }} ./build || true
-          cp target/debian/${{ matrix.package }}_*.deb ./build
+          mkdir -p build/deb build/rpm
+          # Copy DEB
+          cp target/debian/${{ matrix.package }}_*.deb ./build/deb/
+          # Copy RPM
+          cp target/generate-rpm/${{ matrix.package }}*.rpm ./build/rpm/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -225,33 +228,47 @@ jobs:
           name: ${{ matrix.package }}-artifacts
           path: ./build/*
 
-      - name: Publish to Pulp ${{ matrix.package }}
+      - name: Publish DEB [${{ matrix.package }}]
         run: |
           set -euo pipefail
-
-          DEB_FILE=$(find ./build -name "${{ matrix.package }}*.deb" -type f | head -n1)
-
+          # Using the package name from matrix
+          DEB_FILE=$(find ./build/deb -name "${{ matrix.package }}*.deb" -type f | head -n1)
+          
           if [ -z "$DEB_FILE" ]; then
-            echo "[ERROR] No .deb file found for ${{ matrix.package }}"
+            echo "[ERROR] No .deb file found"
             exit 1
           fi
 
-          echo "[INFO] 📦 Publishing: $DEB_FILE"
+          echo "[INFO] 📦 Publishing DEB: $DEB_FILE"
+          pulp deb content upload --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" --file="$DEB_FILE"
 
-          pulp deb content upload \
-            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-            --file="$DEB_FILE"
-
-          echo "[INFO] Creating publication..."
           PUB_HREF=$(pulp deb publication create \
             --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-            --signing-service=mecha-pkg-sign \
-            | jq -r '.pulp_href')
-
-          echo "[INFO] Updating distribution..."
+            --signing-service=mecha-pkg-sign | jq -r '.pulp_href')
+            
           pulp deb distribution update \
             --name="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
             --base-path="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
             --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}"
 
-          echo "[INFO] ✅ Package ${{ matrix.package }} published successfully!"
+      - name: Publish RPM [${{ matrix.package }}]
+        run: |
+          set -euo pipefail
+          # Using the package name from matrix
+          RPM_FILE=$(find ./build/rpm -name "${{ matrix.package }}*.rpm" -type f | head -n1)
+
+          if [ -z "$RPM_FILE" ]; then
+            echo "[ERROR] No .rpm file found"
+            exit 1
+          fi
+
+          echo "[INFO] 📦 Publishing RPM: $RPM_FILE"
+          pulp rpm content upload --repository="${{ vars.MECHA_PULP_RPMS_REPOSITORY_NAME }}" --file="$RPM_FILE"
+
+          PUB_HREF=$(pulp rpm publication create \
+            --repository="${{ vars.MECHA_PULP_RPMS_REPOSITORY_NAME }}" | jq -r '.pulp_href')
+
+          pulp rpm distribution update \
+            --name="${{ vars.MECHA_PULP_RPMS_REPOSITORY_NAME }}" \
+            --base-path="${{ vars.MECHA_PULP_RPMS_REPOSITORY_NAME }}" \
+            --publication="$PUB_HREF"
