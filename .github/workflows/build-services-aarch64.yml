@@ -210,10 +210,11 @@ jobs:
         id: check_publish
         run: |
           SHOULD_PUBLISH="false"
-          # We use the 'key' from the matrix to match the 'detect-changes' output
+          # Check the output from the detect-changes job for this specific matrix key
           if [[ "${{ needs.detect-changes.outputs[matrix.key] }}" == "true" ]]; then
             SHOULD_PUBLISH="true"
-          fi
+          fi          
+
           echo "should_publish=$SHOULD_PUBLISH" >> $GITHUB_OUTPUT
 
       - name: Publish DEB
