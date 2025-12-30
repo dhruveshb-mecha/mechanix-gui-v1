@@ -79,7 +79,7 @@ jobs:
         run: |
           cargo install cargo-deb
           cargo install cargo-generate-rpm
-          
+
       - name: Install Nushell
         run: |
           curl -fsSL https://apt.fury.io/nushell/gpg.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/fury-nushell.gpg
@@ -138,21 +138,34 @@ jobs:
         run: |
           set -euo pipefail
 
-          FULL_VERSION=$(nu utils/resolve-next-version.nu \
-            --format deb \
-            --name ${{ matrix.package }} \
-            --upstream ${{ steps.cargo_version.outputs.upstream }})
+          nu -c '
+            let full_version = (
+              nu utils/resolve-next-version.nu
+                --format deb
+                --name ${{ matrix.package }}
+                --upstream ${{ steps.cargo_version.outputs.upstream }}
+              | lines
+              | last
+            )
 
-          echo "[INFO] Resolved deb version: $FULL_VERSION"
+            if not ($full_version | str contains "-") {
+              error make {
+                msg: "Invalid deb version format"
+                value: $full_version
+              }
+            }
 
-          REVISION=$(echo "$FULL_VERSION" | awk -F'-' '{print $2}')
+            let revision = ($full_version | split row "-" | last)
 
-          if [[ -z "$REVISION" ]]; then
-            echo "[ERROR] Failed to extract deb revision"
-            exit 1
-          fi
+            if not ($revision | str matches "^\d+$") {
+              error make {
+                msg: "Invalid deb revision"
+                value: $revision
+              }
+            }
 
-          echo "revision=$REVISION" >> $GITHUB_OUTPUT
+            print $"revision=($revision)"
+          ' >> "$GITHUB_OUTPUT"
 
       - name: Package deb [${{ matrix.package }}]
         run: |
