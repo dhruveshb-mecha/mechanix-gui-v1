@@ -136,63 +136,68 @@ jobs:
       - name: Resolve versions [${{ matrix.package }}]
         id: version_info
         run: |
-          # Execute nushell and capture output
-          # We use 'tr -d "\n"' to ensure the JSON is on a single line for easier parsing
-          JSON_OUT=$(nu utils/resolve-next-version.nu \
+          set -euo pipefail
+          
+          # 1. Resolve DEB Version Info
+          JSON_DEB=$(nu utils/resolve-next-version.nu \
             --format deb \
             --name ${{ matrix.package }} \
             --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
+          
+          # 2. Resolve RPM Version Info
+          JSON_RPM=$(nu utils/resolve-next-version.nu \
+            --format rpm \
+            --name ${{ matrix.package }} \
+            --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
 
-          echo "Full JSON: $JSON_OUT"
+          echo "DEB JSON: $JSON_DEB"
+          echo "RPM JSON: $JSON_RPM"
 
-          # Extract values
-          REVISION=$(echo "$JSON_OUT" | jq -r '.next_revision')
-          FULL_VER=$(echo "$JSON_OUT" | jq -r '.full_version')
+          # Extract revisions using jq
+          DEB_REV=$(echo "$JSON_DEB" | jq -r '.next_revision')
+          RPM_REV=$(echo "$JSON_RPM" | jq -r '.next_revision')
 
-          # Set GitHub Step Outputs
-          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
-          echo "full_version=$FULL_VER" >> "$GITHUB_OUTPUT"
+          # Set outputs for subsequent steps
+          echo "deb_revision=$DEB_REV" >> "$GITHUB_OUTPUT"
+          echo "rpm_revision=$RPM_REV" >> "$GITHUB_OUTPUT"
 
       - name: Package deb [${{ matrix.package }}]
         run: |
           cargo deb \
-            --deb-revision "${{ steps.version_info.outputs.revision }}" \
+            --deb-revision "${{ steps.version_info.outputs.deb_revision }}" \
             --no-build \
             --package ${{ matrix.package }}
 
       - name: Repack DEB natively [${{ matrix.package }}]
         run: |
           set -euo pipefail
-          
-          # Navigate to the directory to make globbing simpler
           cd target/debian/
-          
-          # Find the first .deb file available
           DEB_FILE=$(ls *.deb | head -n1)
-
+          
           if [[ -z "$DEB_FILE" ]]; then
-            echo "[ERROR] No .deb file found in target/debian/"
+            echo "[ERROR] No .deb file found"
             exit 1
           fi
 
           echo "[INFO] Repacking $DEB_FILE"
-          
           TMPDIR=$(mktemp -d)
           trap 'rm -rf "$TMPDIR"' EXIT
 
-          # Perform the repack
           fakeroot dpkg-deb -R "$DEB_FILE" "$TMPDIR/pkg"
           fakeroot dpkg-deb -b "$TMPDIR/pkg" "$DEB_FILE"
 
       - name: Generate RPM [${{ matrix.package }}]
         run: |
-          cargo generate-rpm -p "$(pwd)/${{ matrix.path }}"
+          # Use the resolved RPM revision for the 'release' field
+          cargo generate-rpm \
+            -s 'release = "${{ steps.version_info.outputs.rpm_revision }}"' \
+            -p "$(pwd)/${{ matrix.path }}"
+          
           ls -la target/generate-rpm
 
       - name: Prepare artifacts
         run: |
           mkdir -p build
-          # Use wildcards to grab whatever was built
           cp target/debian/*.deb build/ 2>/dev/null || true
           cp target/generate-rpm/*.rpm build/ 2>/dev/null || true
 
