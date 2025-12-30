@@ -42,7 +42,7 @@ jobs:
             path: services/conf
           - name: session dbus service
             package: session_service
-            path: services/session
+            path: services/desktop
           - name: search service
             package: mxsearch
             path: services/search/server
@@ -156,7 +156,14 @@ jobs:
             }
 
             let revision = ($full_version | split row "-" | last)
-            
+
+            if not ($revision | str matches "^\d+$") {
+              error make {
+                msg: "Invalid deb revision"
+                value: $revision
+              }
+            }
+
             print $"revision=($revision)"
           ' >> "$GITHUB_OUTPUT"
 
