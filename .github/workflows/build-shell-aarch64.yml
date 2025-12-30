@@ -32,6 +32,7 @@ jobs:
         include:
           - name: Launcher Crate Build
             package: mechanix-launcher
+            path: shell/crates/launcher
 
     runs-on: ubicloud-standard-2-arm
     environment: pre-release
@@ -40,13 +41,13 @@ jobs:
       - name: Setup | Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust 1.91.1
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.91.1
+          toolchain: stable
 
-      - name: Install cargo-deb
-        run: cargo install cargo-deb
+      - name: Install cargo-deb and cargo-generate-rpm
+        run: cargo install cargo-deb cargo-generate-rpm
 
       - name: Install dependencies
         run: |
@@ -124,10 +125,38 @@ jobs:
           cargo build --release --package ${{ matrix.package }}
           ls -la target/release
 
+      - name: Resolve versions [${{ matrix.package }}]
+        id: version_info
+        run: |
+          set -euo pipefail
+
+          # 1. Resolve DEB Version Info
+          JSON_DEB=$(nu utils/resolve-next-version.nu \
+            --format deb \
+            --name ${{ matrix.package }} \
+            --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
+
+          # 2. Resolve RPM Version Info
+          JSON_RPM=$(nu utils/resolve-next-version.nu \
+            --format rpm \
+            --name ${{ matrix.package }} \
+            --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
+
+          echo "DEB JSON: $JSON_DEB"
+          echo "RPM JSON: $JSON_RPM"
+
+          # Extract revisions using jq
+          DEB_REV=$(echo "$JSON_DEB" | jq -r '.next_revision')
+          RPM_REV=$(echo "$JSON_RPM" | jq -r '.next_revision')
+
+          # Set outputs for subsequent steps
+          echo "deb_revision=$DEB_REV" >> "$GITHUB_OUTPUT"
+          echo "rpm_revision=$RPM_REV" >> "$GITHUB_OUTPUT"
+
       - name: Package deb ${{ matrix.package }}
         run: |
           sudo apt install -y fakeroot
-          fakeroot cargo deb --no-build --package ${{ matrix.package }}
+          fakeroot cargo deb --deb-revision "${{ steps.version_info.outputs.revision }}" --no-build --package ${{ matrix.package }}
           ls -la target/debian
 
       - name: Repack DEB natively [${{ matrix.package }}]
@@ -144,6 +173,15 @@ jobs:
           fakeroot dpkg-deb -b "$TMPDIR/pkg" "$DEB_FILE"  
 
           echo "[INFO] ✅ Repacked: $DEB_FILE"
+
+      - name: Generate RPM [${{ matrix.package }}]
+        run: |
+          # Use the resolved RPM revision for the 'release' field
+          cargo generate-rpm \
+            -s 'release = "${{ steps.version_info.outputs.rpm_revision }}"' \
+            -p "$(pwd)/${{ matrix.path }}"
+
+          ls -la target/generate-rpm
 
       - name: Prepare artifacts ${{ matrix.package }}
         run: |

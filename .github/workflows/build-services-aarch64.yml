@@ -57,10 +57,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Rust 1.85.0
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.85.0
+          toolchain: stable
 
       - name: Install system dependencies
         run: |
@@ -137,13 +137,13 @@ jobs:
         id: version_info
         run: |
           set -euo pipefail
-          
+
           # 1. Resolve DEB Version Info
           JSON_DEB=$(nu utils/resolve-next-version.nu \
             --format deb \
             --name ${{ matrix.package }} \
             --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
-          
+
           # 2. Resolve RPM Version Info
           JSON_RPM=$(nu utils/resolve-next-version.nu \
             --format rpm \
@@ -173,7 +173,7 @@ jobs:
           set -euo pipefail
           cd target/debian/
           DEB_FILE=$(ls *.deb | head -n1)
-          
+
           if [[ -z "$DEB_FILE" ]]; then
             echo "[ERROR] No .deb file found"
             exit 1
@@ -192,7 +192,7 @@ jobs:
           cargo generate-rpm \
             -s 'release = "${{ steps.version_info.outputs.rpm_revision }}"' \
             -p "$(pwd)/${{ matrix.path }}"
-          
+
           ls -la target/generate-rpm
 
       - name: Prepare artifacts
