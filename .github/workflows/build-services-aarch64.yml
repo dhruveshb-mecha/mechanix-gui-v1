@@ -140,25 +140,54 @@ jobs:
       - name: Build [${{ matrix.package }}]
         run: cargo build --release --package ${{ matrix.package }}
 
-      - name: Resolve versions
+      - name: Resolve versions [${{ matrix.package }}]
         id: version_info
         run: |
-          # DEB
-          JSON_DEB=$(nu utils/resolve-next-version.nu --format deb --name ${{ matrix.package }} --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
-          # RPM
-          JSON_RPM=$(nu utils/resolve-next-version.nu --format rpm --name ${{ matrix.package }} --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
+          set -euo pipefail
 
-          echo "deb_revision=$(echo $JSON_DEB | jq -r '.next_revision')" >> $GITHUB_OUTPUT
-          echo "rpm_revision=$(echo $JSON_RPM | jq -r '.next_revision')" >> $GITHUB_OUTPUT
+          # 1. Resolve DEB Version Info
+          JSON_DEB=$(nu utils/resolve-next-version.nu \
+            --format deb \
+            --name ${{ matrix.package }} \
+            --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
+
+          # 2. Resolve RPM Version Info
+          JSON_RPM=$(nu utils/resolve-next-version.nu \
+            --format rpm \
+            --name ${{ matrix.package }} \
+            --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
+
+          echo "DEB JSON: $JSON_DEB"
+          echo "RPM JSON: $JSON_RPM"
+
+          # Extract revisions using jq
+          DEB_REV=$(echo "$JSON_DEB" | jq -r '.next_revision')
+          RPM_REV=$(echo "$JSON_RPM" | jq -r '.next_revision')
+
+          # Set outputs for subsequent steps
+          echo "deb_revision=$DEB_REV" >> "$GITHUB_OUTPUT"
+          echo "rpm_revision=$RPM_REV" >> "$GITHUB_OUTPUT"
 
       - name: Package deb
         run: |
           cargo deb --deb-revision "${{ steps.version_info.outputs.deb_revision }}" --no-build --package ${{ matrix.package }}
-          # Repack natively
-          DEB_FILE=$(ls target/debian/${{ matrix.package }}_*.deb | head -n1)
+          DEB_FILE=$(ls target/debian/*.deb | head -n1)
+
+          if [[ -z "$DEB_FILE" ]]; then
+            echo "[ERROR] No .deb file found in target/debian/"
+            exit 1
+          fi
+
+          echo "[INFO] Found package: $DEB_FILE. Starting native repack..."
+
+          # 3. Repack natively
           TMPDIR=$(mktemp -d)
+          trap 'rm -rf "$TMPDIR"' EXIT
+          
           fakeroot dpkg-deb -R "$DEB_FILE" "$TMPDIR/pkg"
           fakeroot dpkg-deb -b "$TMPDIR/pkg" "$DEB_FILE"
+          
+          echo "[INFO] ✅ Repack complete: $DEB_FILE"
 
       - name: Generate RPM
         run: |
