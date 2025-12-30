@@ -29,6 +29,10 @@ env:
 jobs:
   build:
     name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04-arm
+    environment: pre-release
+    continue-on-error: true
+
     strategy:
       fail-fast: false
       matrix:
@@ -49,12 +53,8 @@ jobs:
             package: mechanix-extension-service
             path: services/extensions
 
-    runs-on: ubuntu-24.04-arm
-    environment: pre-release
-    continue-on-error: true
-
     steps:
-      - name: Setup | Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install Rust 1.85.0
@@ -62,12 +62,7 @@ jobs:
         with:
           toolchain: 1.85.0
 
-      - name: Install cargo tools
-        run: |
-          cargo install cargo-deb
-          cargo install cargo-generate-rpm
-
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt update
           sudo apt install -y \
@@ -76,7 +71,15 @@ jobs:
             libpulse-dev \
             libpam0g-dev \
             libclang-dev \
-            librust-gdk-pixbuf-sys-dev
+            librust-gdk-pixbuf-sys-dev \
+            nushell \
+            pipx \
+            jq
+
+      - name: Install cargo tools
+        run: |
+          cargo install cargo-deb
+          cargo install cargo-generate-rpm
 
       - name: Setup | Pulp CLI
         run: |
@@ -88,18 +91,16 @@ jobs:
           set -euo pipefail
 
           if [[ -z "$MECHA_PULP_API_URL" ]]; then
-            echo "[ERROR] MECHA_PULP_API_URL is empty."
+            echo "[ERROR] MECHA_PULP_API_URL is empty"
             exit 1
           fi
-
-          PULP_API_URL="${MECHA_PULP_API_URL}:8080"
-          echo "[INFO] Using Pulp base URL: $PULP_API_URL"
 
           pulp config create \
             --username "$MECHA_PULP_USERNAME" \
             --password "$MECHA_PULP_PASSWORD" \
-            --base-url "$PULP_API_URL" \
+            --base-url "${MECHA_PULP_API_URL}:8080" \
             --overwrite
+
       - name: Set up Git SSH key
         run: |
           mkdir -p ~/.ssh
@@ -107,14 +108,52 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan github.com >> ~/.ssh/known_hosts
 
+      - name: Cargo fetch
+        run: cargo fetch
+
       - name: Build [${{ matrix.package }}]
+        run: cargo build --release --package ${{ matrix.package }}
+
+      - name: Read Cargo version [${{ matrix.package }}]
+        id: cargo_version
         run: |
-          cargo fetch
-          cargo build --release --package ${{ matrix.package }}
+          set -euo pipefail
+
+          VERSION=$(nu -c "
+            open ${{ matrix.path }}/Cargo.toml
+            | get package.version
+          ")
+
+          echo "[INFO] Upstream version: $VERSION"
+          echo "upstream=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Resolve deb revision [${{ matrix.package }}]
+        id: deb_version
+        run: |
+          set -euo pipefail
+
+          FULL_VERSION=$(nu utils/resolve-next-version.nu \
+            --format deb \
+            --name ${{ matrix.package }} \
+            --upstream ${{ steps.cargo_version.outputs.upstream }})
+
+          echo "[INFO] Resolved deb version: $FULL_VERSION"
+
+          REVISION=$(echo "$FULL_VERSION" | awk -F'-' '{print $2}')
+
+          if [[ -z "$REVISION" ]]; then
+            echo "[ERROR] Failed to extract deb revision"
+            exit 1
+          fi
+
+          echo "revision=$REVISION" >> $GITHUB_OUTPUT
 
       - name: Package deb [${{ matrix.package }}]
         run: |
-          cargo deb --no-build --package ${{ matrix.package }}
+          cargo deb \
+            --deb-revision ${{ steps.deb_version.outputs.revision }} \
+            --no-build \
+            --package ${{ matrix.package }}
 
       - name: Repack DEB natively [${{ matrix.package }}]
         run: |
@@ -129,12 +168,10 @@ jobs:
 
       - name: Generate RPM [${{ matrix.package }}]
         run: |
-          set -euo pipefail
-          echo "[INFO] Generating RPM from ${{ matrix.path }}"
           cargo generate-rpm -p "$(pwd)/${{ matrix.path }}"
           ls -la target/generate-rpm
 
-      - name: Prepare artifacts [${{ matrix.package }}]
+      - name: Prepare artifacts
         run: |
           mkdir -p build
           cp target/debian/${{ matrix.package }}_*.deb build/
@@ -145,56 +182,3 @@ jobs:
         with:
           name: ${{ matrix.package }}-artifacts
           path: build/*
-
-      - name: Publish to Pulp ${{ matrix.package }}
-        run: |
-          set -euo pipefail
-
-          DEB_FILE=$(find ./build -name "${{ matrix.package }}*.deb" -type f | head -n1)
-
-          if [ -z "$DEB_FILE" ]; then
-            echo "[ERROR] No .deb file found for ${{ matrix.package }}"
-            exit 1
-          fi
-
-          echo "[INFO] 📦 Publishing: $DEB_FILE"
-
-          pulp deb content upload \
-            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-            --file="$DEB_FILE"
-
-          echo "[INFO] Creating publication..."
-          PUB_HREF=$(pulp deb publication create \
-            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-            --signing-service=mecha-pkg-sign \
-            | jq -r '.pulp_href')
-
-          echo "[INFO] Updating distribution..."
-          pulp deb distribution update \
-            --name="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-            --base-path="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}"
-
-          echo "[INFO] ✅ Package ${{ matrix.package }} published successfully!"
-
-      - name: Publish RPM to Pulp [${{ matrix.package }}]
-        run: |
-          set -euo pipefail
-
-          for RPM in target/generate-rpm/*.rpm; do
-            pulp rpm content upload \
-              --repository="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
-              --file="$RPM"
-          done
-
-          PUB_TASK=$(pulp rpm publication create \
-            --repository="$MECHA_PULP_RPMS_REPOSITORY_NAME")
-
-          PUB_HREF=$(echo "$PUB_TASK" | jq -r '.pulp_href')
-
-          pulp rpm distribution update \
-            --name="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
-            --base-path="$MECHA_PULP_RPMS_REPOSITORY_NAME" \
-            --repository="$MECHA_PULP_RPMS_REPOSITORY_NAME"
-
-          echo "[INFO] ✅ RPM published for ${{ matrix.package }}"

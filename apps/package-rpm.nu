@@ -54,10 +54,13 @@ def main [
     # Package name
     let pkg_name = $"mechanix-($app_name)"
 
+    # Find Package resolver Script 
+    let resolver_script = "../utils/resolve-next-version.nu" | path expand
+
     # Get full RPM revision from resolver
     let rpm_revision_full = try {
-        let resolver_cmd = [
-            "./resolve-next-version.nu"
+            let resolver_cmd = [
+            $resolver_script
             "--format" "rpm"
             "--name" $pkg_name
             "--upstream" $app_version

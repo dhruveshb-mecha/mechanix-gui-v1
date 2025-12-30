@@ -54,10 +54,13 @@ def main [
     # Package name
     let pkg_name = $"mechanix-($app_name)"
 
+    # Find Package resolver Script 
+    let resolver_script = "../utils/resolve-next-version.nu" | path expand
+
     # Capture version cleanly from resolver
     let pkg_version = try {
         let resolver_cmd = [
-            "./resolve-next-version.nu"
+            $resolver_script
             "--format" "deb"
             "--name" $pkg_name
             "--upstream" $app_version
