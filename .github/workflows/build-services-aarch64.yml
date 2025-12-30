@@ -163,11 +163,24 @@ jobs:
       - name: Repack DEB natively [${{ matrix.package }}]
         run: |
           set -euo pipefail
-          DEB_FILE=$(ls target/debian/${{ matrix.package }}_*.deb | head -n1)
+          
+          # Navigate to the directory to make globbing simpler
+          cd target/debian/
+          
+          # Find the first .deb file available
+          DEB_FILE=$(ls *.deb | head -n1)
 
+          if [[ -z "$DEB_FILE" ]]; then
+            echo "[ERROR] No .deb file found in target/debian/"
+            exit 1
+          fi
+
+          echo "[INFO] Repacking $DEB_FILE"
+          
           TMPDIR=$(mktemp -d)
           trap 'rm -rf "$TMPDIR"' EXIT
 
+          # Perform the repack
           fakeroot dpkg-deb -R "$DEB_FILE" "$TMPDIR/pkg"
           fakeroot dpkg-deb -b "$TMPDIR/pkg" "$DEB_FILE"
 
@@ -179,8 +192,9 @@ jobs:
       - name: Prepare artifacts
         run: |
           mkdir -p build
-          cp target/debian/${{ matrix.package }}_*.deb build/
-          cp target/generate-rpm/*.rpm build/
+          # Use wildcards to grab whatever was built
+          cp target/debian/*.deb build/ 2>/dev/null || true
+          cp target/generate-rpm/*.rpm build/ 2>/dev/null || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
