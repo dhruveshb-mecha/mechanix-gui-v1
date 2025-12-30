@@ -1,69 +1,79 @@
 #!/usr/bin/env nu
 
 def main [
-  --format: string,
-  --name: string,
-  --upstream: string,
-  --base-url: string = "http://pkg.mecha.so"
+    --format: string,
+    --name: string,
+    --upstream: string,
+    --base-url: string = "http://pkg.mecha.so"
 ] {
 
-  if $format not-in ["deb", "rpm"] {
-    error make { msg: "format must be 'deb' or 'rpm'" }
-  }
-
-  # Read username/password from env correctly in Nushell
-  let username = ($env.MECHA_PULP_USERNAME? | default "")
-  let password = ($env.MECHA_PULP_PASSWORD? | default "")
-
-  let endpoint = if $format == "deb" {
-    $"($base_url)/pulp/api/v3/content/deb/packages/?package=($name)"
-  } else {
-    $"($base_url)/pulp/api/v3/content/rpm/packages/?name=($name)"
-  }
-
-  print $"[INFO] Querying Pulp: ($endpoint)"
-
-  let headers = if ($username != "" and $password != "") {
-    {
-      Authorization: (
-        "Basic " + (
-          $"($username):($password)" | encode base64
-        )
-      )
-      Accept: "application/json"
+    if $format not-in ["deb", "rpm"] {
+        error make { msg: "format must be 'deb' or 'rpm'" }
     }
-  } else {
-    { Accept: "application/json" }
-  }
 
-  let response = (http get --headers $headers $endpoint)
-  let results = ($response.results? | default [])
+    # Retrieve credentials from environment
+    let username = ($env.MECHA_PULP_USERNAME? | default "")
+    let password = ($env.MECHA_PULP_PASSWORD? | default "")
 
-  if ($results | is-empty) {
-    print $"($upstream)-1"
-    return
-  }
+    let endpoint = if $format == "deb" {
+        $"($base_url)/pulp/api/v3/content/deb/packages/?package=($name)"
+    } else {
+        $"($base_url)/pulp/api/v3/content/rpm/packages/?name=($name)"
+    }
 
-  let versions = (
-    $results
-    | each { |pkg|
-        if $format == "deb" { $pkg.version } else { $"($pkg.version)-($pkg.release)" }
-      }
-  )
+    # Prepare Headers
+    let headers = if ($username != "" and $password != "") {
+        {
+            Authorization: $"Basic (($"($username):($password)" | encode base64))"
+            Accept: "application/json"
+        }
+    } else {
+        { Accept: "application/json" }
+    }
 
-  let revisions = (
-    $versions
-    | where { |v| $v | str starts-with $"($upstream)-" }
-    | each { |v| ($v | split row "-" | last | into int) }
-  )
+    # Fetch data from Pulp
+    let response = (http get --headers $headers $endpoint)
+    let results = ($response.results? | default [])
 
-  if ($revisions | is-empty) {
-    print $"($upstream)-1"
-    return
-  }
+    # Calculate Versions
+    let versions = (
+        $results
+        | each { |pkg|
+            if $format == "deb" { 
+                $pkg.version 
+            } else { 
+                $"($pkg.version)-($pkg.release)" 
+            }
+        }
+    )
 
-  let max_rev = ($revisions | math max)
-  let next_rev = $max_rev + 1
-  let next_version = $"($upstream)-($next_rev)"
-  print $next_version
+    # Filter for the specific upstream version and find the highest revision
+    let revisions = (
+        $versions
+        | where { |v| $v | str starts-with $"($upstream)-" }
+        | each { |v| 
+            let parts = ($v | split row "-")
+            if ($parts | length) >= 2 {
+                $parts | last | into int
+            } else {
+                0
+            }
+          }
+    )
+
+    let current_max_rev = if ($revisions | is-empty) { 0 } else { $revisions | math max }
+    let next_rev = $current_max_rev + 1
+    
+    # Construct the JSON output
+    let output = {
+        package_name: $name
+        format: $format
+        upstream_version: $upstream
+        current_revision: $current_max_rev
+        next_revision: $next_rev
+        full_version: $"($upstream)-($next_rev)"
+    }
+
+    # Output as JSON for the CI to consume
+    $output | to json
 }

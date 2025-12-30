@@ -133,39 +133,20 @@ jobs:
           echo "[INFO] Upstream version: $VERSION"
           echo "upstream=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Resolve deb revision [${{ matrix.package }}]
-        id: deb_version
+      - name: Resolve Deb versions [${{ matrix.package }}]
+        id: version_info
         run: |
-          set -euo pipefail
+          # Run the script and capture the JSON output
+          JSON_OUT=$(nu utils/resolve-next-version.nu \
+            --format deb \
+            --name ${{ matrix.package }} \
+            --upstream ${{ steps.cargo_version.outputs.upstream }})
 
-          nu -c '
-            let full_version = (
-              nu utils/resolve-next-version.nu
-                --format deb
-                --name ${{ matrix.package }}
-                --upstream ${{ steps.cargo_version.outputs.upstream }}
-              | lines
-              | last
-            )
+          echo "Full JSON: $JSON_OUT"
 
-            if not ($full_version | str contains "-") {
-              error make {
-                msg: "Invalid deb version format"
-                value: $full_version
-              }
-            }
-
-            let revision = ($full_version | split row "-" | last)
-
-            if not ($revision | str matches "^\d+$") {
-              error make {
-                msg: "Invalid deb revision"
-                value: $revision
-              }
-            }
-
-            print $"revision=($revision)"
-          ' >> "$GITHUB_OUTPUT"
+          # Extract values using jq and set outputs
+          echo "revision=$(echo $JSON_OUT | jq -r '.next_revision')" >> $GITHUB_OUTPUT
+          echo "full_version=$(echo $JSON_OUT | jq -r '.full_version')" >> $GITHUB_OUTPUT
 
       - name: Package deb [${{ matrix.package }}]
         run: |
