@@ -133,25 +133,30 @@ jobs:
           echo "[INFO] Upstream version: $VERSION"
           echo "upstream=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Resolve Deb versions [${{ matrix.package }}]
+      - name: Resolve versions [${{ matrix.package }}]
         id: version_info
         run: |
-          # Run the script and capture the JSON output
+          # Execute nushell and capture output
+          # We use 'tr -d "\n"' to ensure the JSON is on a single line for easier parsing
           JSON_OUT=$(nu utils/resolve-next-version.nu \
             --format deb \
             --name ${{ matrix.package }} \
-            --upstream ${{ steps.cargo_version.outputs.upstream }})
+            --upstream ${{ steps.cargo_version.outputs.upstream }} | tr -d '\n')
 
           echo "Full JSON: $JSON_OUT"
 
-          # Extract values using jq and set outputs
-          echo "revision=$(echo $JSON_OUT | jq -r '.next_revision')" >> $GITHUB_OUTPUT
-          echo "full_version=$(echo $JSON_OUT | jq -r '.full_version')" >> $GITHUB_OUTPUT
+          # Extract values
+          REVISION=$(echo "$JSON_OUT" | jq -r '.next_revision')
+          FULL_VER=$(echo "$JSON_OUT" | jq -r '.full_version')
+
+          # Set GitHub Step Outputs
+          echo "revision=$REVISION" >> "$GITHUB_OUTPUT"
+          echo "full_version=$FULL_VER" >> "$GITHUB_OUTPUT"
 
       - name: Package deb [${{ matrix.package }}]
         run: |
           cargo deb \
-            --deb-revision ${{ steps.deb_version.outputs.revision }} \
+            --deb-revision "${{ steps.version_info.outputs.revision }}" \
             --no-build \
             --package ${{ matrix.package }}
 
