@@ -46,8 +46,22 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install cargo-deb and cargo-generate-rpm
-        run: cargo install cargo-deb cargo-generate-rpm
+      - name: Install cargo tools
+        run: |
+          cargo install cargo-deb
+          cargo install cargo-generate-rpm
+
+      - name: Install Nushell
+        run: |
+          curl -fsSL https://apt.fury.io/nushell/gpg.key | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/fury-nushell.gpg
+          echo "deb https://apt.fury.io/nushell/ /" | sudo tee /etc/apt/sources.list.d/fury.list
+          sudo apt update
+          sudo apt install nushell
+
+      - name: Setup | Pulp CLI
+        run: |
+          pipx install --force pulp-cli[pygments]
+          pipx inject pulp-cli pulp-cli-deb pulp_rpm
 
       - name: Install dependencies
         run: |
@@ -119,6 +133,21 @@ jobs:
             --password "$MECHA_PULP_PASSWORD" \
             --base-url "$PULP_API_URL" \
             --overwrite
+
+      - name: Get Upstream Version ${{ matrix.package }}
+        id: cargo_version
+        shell: bash
+        run: |
+          VERSION=$(cargo metadata --format-version 1 --no-deps --manifest-path ${{ matrix.path }}/Cargo.toml | \
+            jq -r ".packages[] | select(.name == \"${{ matrix.package }}\") | .version")
+
+          if [ -z "$VERSION" ] || [ "$VERSION" == "null" ]; then
+            echo "[ERROR] Could not resolve version for ${{ matrix.package }}"
+            exit 1
+          fi
+
+          echo "Detected Version: $VERSION"
+          echo "upstream=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build ${{ matrix.package }}
         run: |
