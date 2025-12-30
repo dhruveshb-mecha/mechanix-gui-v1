@@ -83,6 +83,7 @@ jobs:
             wayland-protocols
             libxkbcommon-tools
             libgdk-pixbuf-2.0-0
+            libgdk-pixbuf2.0-dev
           )
 
           # Loop over packages and install only available ones
