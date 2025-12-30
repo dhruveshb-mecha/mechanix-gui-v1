@@ -133,9 +133,16 @@ jobs:
       - name: Upstream Version Read ${{ matrix.package }}
         id: upstream_version
         run: |
-          # Robust version reading using cargo metadata
-          VERSION=$(cargo metadata --format-version 1 --no-deps --manifest-path ${{ matrix.path }}/Cargo.toml | jq -r '.packages[0].version')
-          echo "upstream=$VERSION" >> $GITHUB_OUTPUT
+          VERSION=$(cargo metadata --format-version 1 --no-deps --manifest-path ${{ matrix.path }}/Cargo.toml | \
+            jq -r ".packages[] | select(.name == \"${{ matrix.package }}\") | .version")
+
+          if [ -z "$VERSION" ] || [ "$VERSION" == "null" ]; then
+            echo "[ERROR] Could not resolve version for ${{ matrix.package }}"
+            exit 1
+          fi
+
+          echo "Detected Version: $VERSION"
+          echo "upstream=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build [${{ matrix.package }}]
         run: cargo build --release --package ${{ matrix.package }}
@@ -196,8 +203,8 @@ jobs:
       - name: Prepare build folder
         run: |
           mkdir -p build/deb build/rpm
-          cp target/debian/*.deb build/deb/ 2>/dev/null || true
-          cp target/generate-rpm/*.rpm build/rpm/ 2>/dev/null || true
+          cp target/debian/*.deb build/deb/ || echo "No DEB found"
+          cp target/generate-rpm/*.rpm build/rpm/ || echo "No RPM found"
 
       - name: Check Publish Condition
         id: check_publish
