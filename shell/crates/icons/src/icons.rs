@@ -28,6 +28,8 @@ pub struct Icons {
     pub lockscreen: LockscreenIcons,
     #[serde(default)]
     pub homescreen: HomeScreenIcons,
+    #[serde(default)]
+    pub toast: ToastIcons,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -47,7 +49,7 @@ impl Default for AppDrawerIcons {
             category: PathBuf::from(format!("{}app-drawer/category.png", ICONS_BASE_PATH)),
             default_app: PathBuf::from(format!("{}app-drawer/default-app.png", ICONS_BASE_PATH)),
             delete: PathBuf::from(format!("{}app-drawer/delete.svg", ICONS_BASE_PATH)),
-            info: PathBuf::from(format!("{}app-drawer/info.png", ICONS_BASE_PATH)),
+            info: PathBuf::from(format!("{}app-drawer/info.svg", ICONS_BASE_PATH)),
             search: PathBuf::from(format!("{}app-drawer/search.svg", ICONS_BASE_PATH)),
             x: PathBuf::from(format!("{}app-drawer/x.png", ICONS_BASE_PATH)),
         }
@@ -78,6 +80,7 @@ pub struct NotificationIcons {
     pub close: PathBuf,
     pub navbar_gray: PathBuf,
     pub navbar: PathBuf,
+    pub bell: PathBuf,
 }
 
 impl Default for NotificationIcons {
@@ -88,6 +91,7 @@ impl Default for NotificationIcons {
             close: PathBuf::from(format!("{}notifications/close.svg", ICONS_BASE_PATH)),
             navbar_gray: PathBuf::from(format!("{}notifications/navbar-gray.png", ICONS_BASE_PATH)),
             navbar: PathBuf::from(format!("{}notifications/navbar.png", ICONS_BASE_PATH)),
+            bell: PathBuf::from(format!("{}notifications/bell.svg", ICONS_BASE_PATH)),
         }
     }
 }
@@ -729,6 +733,24 @@ impl Default for ClockIcons {
     fn default() -> Self {
         Self {
             dashed: PathBuf::from(format!("{}homescreen/clock/dashed.png", ICONS_BASE_PATH)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub struct ToastIcons {
+    pub extension_attached: PathBuf,
+    pub extension_detached: PathBuf,
+    pub close: PathBuf,
+}
+
+impl Default for ToastIcons {
+    fn default() -> Self {
+        Self {
+            extension_attached: PathBuf::from(format!("{}toast/extension_attached.png", ICONS_BASE_PATH)),
+            extension_detached: PathBuf::from(format!("{}toast/extension_detached.png", ICONS_BASE_PATH)),
+            close: PathBuf::from(format!("{}toast/cross.png", ICONS_BASE_PATH)),
         }
     }
 }

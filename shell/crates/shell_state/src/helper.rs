@@ -1,4 +1,3 @@
-use std::{thread, time::Duration};
 use crate::messages::ShellStateMessage;
 use bluez::service::BluetoothService;
 use chrono::Local;
@@ -9,9 +8,8 @@ use pulseaudio::service::PulseAudioService;
 pub const MAX_DEVICE_BRIGHTNESS: u32 = 254;
 pub const DEFAULT_MIN_BRIGHTNESS: f32 = 10.;
 
-pub fn get_current_datetime() -> String {
-    let now = Local::now();
-    format!("{}", now.format("%H:%M"))
+pub fn get_current_datetime() -> chrono::DateTime<Local> {
+     Local::now()
 }
 
 pub async fn sync_connected_network(
@@ -91,7 +89,6 @@ pub async fn get_sound_device_info(
     tx: &mut mpsc::Sender<ShellStateMessage>,
     pulse_service: &PulseAudioService,
 ) {
-            let _ = thread::sleep(Duration::from_millis(5));
     if let Ok(device_info) = pulse_service.handle.get_default_sink().await {
         let _ = tx
             .send(ShellStateMessage::OutputSoundDevice { device_info })

@@ -25,7 +25,7 @@ pub struct ExtensionWidget {
     has_border: bool,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum ExtensionKind {
     Gamepad,
     Keyboard,
@@ -143,27 +143,37 @@ pub fn listen_for_extensions(cx: &mut App) {
     }
 
     let mut dispatcher_rx = Dispatcher::global(cx).channel().1.clone();
-
+    let mut kind: Option<ExtensionKind> = None;
+    let mut is_attached: bool = false;
     cx.spawn(async move |app| {
         while let Ok(message) = dispatcher_rx.recv().await {
             match message {
-                dispatcher::Message::ExtensionAttached(id) => {
-                    let _ = app.update(|cx| {
-                        println!("Extension attached: {id}");
-                        let kind = ExtensionKind::from(&id);
-                        cx.global_mut::<ExtensionState>().kind = Some(kind);
-                        cx.refresh_windows();
-                    });
+                dispatcher::Message::SetExtensionDetected(attached) => {
+                    if attached {
+                        kind = Some(ExtensionKind::from("UNKNOWN"));
+                        is_attached = true;
+                    } else {
+                        // Extension detached
+                        kind = None;
+                        is_attached = false;
+                    }
                 }
-                dispatcher::Message::ExtensionDetached(id) => {
-                    let _ = app.update(|cx| {
-                        println!("Extension detached: {id}");
-                        cx.global_mut::<ExtensionState>().kind = None;
-                        cx.refresh_windows();
-                    });
+                dispatcher::Message::SetExtensionName(id) => {
+                    if is_attached {
+                        kind = Some(ExtensionKind::from(&id));
+                    } else {
+                        kind = None;
+                    }
                 }
                 _ => {}
             }
+            let _ = app.update(|cx| {
+                //TODO: @sandeep update with your code
+                // let
+                // kind = Some(ExtensionKind::from(&id));
+                cx.global_mut::<ExtensionState>().kind = kind;
+                cx.refresh_windows();
+            });
         }
     })
     .detach();

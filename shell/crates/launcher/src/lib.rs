@@ -193,7 +193,7 @@ pub fn run() {
 
         let installed_apps = cx.new(|cx| InstalledApps::new(cx));
 
-        status_bar::run_app(cx);
+        // status_bar::run_app(cx);
 
         homescreen::run_app(cx);
 
@@ -208,6 +208,8 @@ pub fn run() {
         notifications::run_app(cx);
 
         volume_slider::run_app(cx);
+
+        toast::run_app(cx);
 
         cx.activate(true);
         cx.refresh_windows();

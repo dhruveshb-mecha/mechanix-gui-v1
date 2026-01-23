@@ -34,9 +34,11 @@ impl HomescreenWidget for Time {
     fn render(&self, cx: &mut gpui::App) -> gpui::AnyElement {
         let colors = cx.theme().colors.clone();
         let digital = cx.fonts().digital.clone();
+        let bg_color = colors.accent_200.clone();
         let text_color = colors.background_700.clone();
         let date_time = ShellState::global(cx).current_time_date.clone();
-        let mut parts = date_time.split(':');
+        let time_string = date_time.format("%H:%M").to_string();
+        let mut parts = time_string.split(':');
         let hour = parts.next().unwrap_or("00").to_string();
         let minute = parts.next().unwrap_or("00").to_string();
         let icons = Icons::global(cx).homescreen.clock.clone();
@@ -49,6 +51,7 @@ impl HomescreenWidget for Time {
             .relative()
             .overflow_hidden()
             .rounded(px(16.))
+            .bg(bg_color)
             .child(
                 div()
                     .absolute()
