@@ -18,6 +18,6 @@ extension BackButtonExtension on BuildContext {
             iconWidth: 12.13,
             iconHeight: 20.38,
           ),
-        ).padLeft(12),
+        ).padLeft(8),
       );
 }

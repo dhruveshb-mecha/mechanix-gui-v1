@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_files/app_config.dart';
 import 'package:mechanix_files/src/commons/constants.dart';
 import 'package:mechanix_files/src/commons/customWidgets/middle_ellipsis_text.dart';
+import 'package:mechanix_files/src/commons/customWidgets/pressable_icon.dart';
 import 'package:mechanix_files/src/controllers/file_manager_controller.dart';
 import 'package:mechanix_files/src/features/files/blocs/file_boc.dart';
 import 'package:mechanix_files/src/features/files/blocs/file_event.dart';
@@ -124,7 +125,7 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
 
   TextStyle listItemTitleTextStyle(BuildContext context) {
     return TextStyle(
-      fontSize: 18,
+      fontSize: 20,
       color: context.colorScheme.onSurface,
       fontWeight: FontWeight.w400,
     );
@@ -145,7 +146,7 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
     final selectedCount = selectedPaths.length;
     final label = selectedCount > 1
         ? " $selectedCount items"
-        : " '${selectedPaths.first.split('/').last}'";
+        : " ${selectedPaths.first.split('/').last}";
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -177,14 +178,13 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
                   context, _scrollController, controller),
         ),
 
-        const SizedBox(height: 18),
         Divider(
           height: 1,
           color: context.colorScheme.surfaceContainer,
         ),
         // Navigation bar
         Container(
-          height: 64,
+          height: 66,
           color: context.secondaryContainer,
           child: Row(
             children: [
@@ -192,7 +192,7 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
                 Expanded(
                   child: MechanixTextInput.search(
                     theme: MechanixTextInputThemeData(
-                      widgetHeight: 64,
+                      widgetHeight: 66,
                       widgetDecoration: BoxDecoration(
                         color: context.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(0),
@@ -204,6 +204,22 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
                       iconColor: context.colorScheme.onSurface,
                       iconHeight: 24,
                       iconWidth: 24,
+                    ),
+                    isClearButtonRequired: false,
+                    anchorWidget: Padding(
+                      padding: const EdgeInsets.only(left: 5),
+                      child: DecoratedPressableIcon(
+                        onTap: () {
+                          setState(() {
+                            isSearching = false;
+                            searchQuery.value = "";
+                          });
+                          controller.search('');
+                        },
+                        tapBackgroundColor:
+                            context.colorScheme.surfaceContainer.withAlpha(100),
+                        icon: const Icon(Icons.close),
+                      ),
                     ),
                     hintText: "Search here",
                     onChanged: (query) {
@@ -229,51 +245,57 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
                 Expanded(
                   child: MechanixBottomBar(
                     theme: MechanixBottomBarThemeData(
-                      height: 60,
-                      decoration: BoxDecoration(
-                          color: context.colorScheme.surfaceContainerHigh),
-                    ),
+                        height: 66,
+                        decoration: BoxDecoration(
+                            color: context.colorScheme.surfaceContainerHigh),
+                        widgetPadding:
+                            const EdgeInsets.only(left: 8, top: 10, right: 8)),
                     leadingWidget: [
-                      BottomBarButton(
-                        iconPath: Images.back,
-                        onPressed: () {
-                          (isHomePageDir ? homeNavigation() : handleBack());
-                        },
+                      BottomBarButton.widget(
+                        widget: DecoratedPressableIcon(
+                          iconPath: Images.back,
+                          tapBackgroundColor: context
+                              .colorScheme.surfaceContainer
+                              .withAlpha(100),
+                          onTap: () {
+                            (isHomePageDir ? homeNavigation() : handleBack());
+                          },
+                        ),
                       ),
                     ],
                     anchorWidget: [
-                      BottomBarButton(
-                        iconWidget: IconWidget(
+                      BottomBarButton.widget(
+                        widget: DecoratedPressableIcon(
                           iconPath: Images.search,
-                          iconColor: context.colorScheme.onSurface,
-                          iconHeight: 28,
-                          iconWidth: 28,
+                          tapBackgroundColor: context
+                              .colorScheme.surfaceContainer
+                              .withAlpha(100),
+                          onTap: () {
+                            setState(() => isSearching = true);
+                          },
                         ),
-                        onPressed: () {
-                          setState(() => isSearching = true);
-                        },
                       ),
-                      BottomBarButton(
-                        iconWidget: IconWidget(
+                      BottomBarButton.widget(
+                        widget: DecoratedPressableIcon(
                           iconPath: Images.home,
-                          iconColor: context.colorScheme.onSurface,
-                          iconHeight: 28,
-                          iconWidth: 28,
+                          tapBackgroundColor: context
+                              .colorScheme.surfaceContainer
+                              .withAlpha(100),
+                          onTap: () {
+                            setState(() => showHomeView = true);
+                          },
                         ),
-                        onPressed: () {
-                          setState(() => showHomeView = true);
-                        },
                       ),
-                      BottomBarButton(
-                        iconWidget: IconWidget(
+                      BottomBarButton.widget(
+                        widget: DecoratedPressableIcon(
                           iconPath: Images.createFolder,
-                          iconColor: context.colorScheme.onSurface,
-                          iconHeight: 28,
-                          iconWidth: 28,
+                          tapBackgroundColor: context
+                              .colorScheme.surfaceContainer
+                              .withAlpha(100),
+                          onTap: () async {
+                            await createFolderAndRename();
+                          },
                         ),
-                        onPressed: () async {
-                          await createFolderAndRename();
-                        },
                       ),
                     ],
                   ),
@@ -391,10 +413,12 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
     final bool isEmpty = renameText.trim().isEmpty;
     final bool isSame = renameText.trim() == originalFolderName.trim();
     final bool showCheck = !isEmpty && !isSame; // valid new name
+    final oldPath = p.join(controller.getCurrentPath, originalFolderName);
 
     return Expanded(
       child: MechanixTextInput.textInput(
         theme: MechanixTextInputThemeData(
+          widgetHeight: 66,
           widgetDecoration: BoxDecoration(
             color: context.surfaceContainerHigh,
             borderRadius: BorderRadius.circular(0),
@@ -403,29 +427,45 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
         cursorColor: context.colorScheme.primaryContainer,
         autofocus: true,
         initialValue: renameText,
-        onChanged: (v) => setState(() => renameText = v),
+        onChanged: (v) {
+          setState(() {
+            renameText = v;
+          });
+
+          controller.setLiveRename(oldPath, v);
+        },
         anchorWidget: showCheck
-            ? IconButton(
-                icon: Icon(Icons.check, color: context.colorScheme.onSurface),
-                onPressed: () {
-                  final filesBloc = context.read<FilesBloc>();
-                  filesBloc.add(
-                    Rename(
-                      oldPath: createdFolderPath,
-                      newName: renameText,
-                      controller: controller,
-                    ),
-                  );
-                  setState(() => showRenameBar = false);
-                  controller.clearNewFolder();
-                },
+            ? Padding(
+                padding: const EdgeInsets.only(left: 5),
+                child: DecoratedPressableIcon(
+                  icon: const Icon(Icons.check),
+                  onTap: () {
+                    final filesBloc = context.read<FilesBloc>();
+                    filesBloc.add(
+                      Rename(
+                        oldPath: createdFolderPath,
+                        newName: renameText,
+                        controller: controller,
+                      ),
+                    );
+                    setState(() => showRenameBar = false);
+                    controller.clearNewFolder();
+                  },
+                  tapBackgroundColor:
+                      context.colorScheme.surfaceContainer.withAlpha(100),
+                ),
               )
-            : IconButton(
-                icon: Icon(Icons.close, color: context.colorScheme.onSurface),
-                onPressed: () {
-                  setState(() => showRenameBar = false);
-                  controller.clearNewFolder();
-                },
+            : Padding(
+                padding: const EdgeInsets.only(left: 5),
+                child: DecoratedPressableIcon(
+                  icon: const Icon(Icons.close),
+                  onTap: () {
+                    setState(() => showRenameBar = false);
+                    controller.clearNewFolder();
+                  },
+                  tapBackgroundColor:
+                      context.colorScheme.surfaceContainer.withAlpha(100),
+                ),
               ),
       ),
     );
@@ -459,38 +499,38 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
                 ),
                 sectionListItems: [
                   SectionListItems.leadingIcon(
-                      title: "Home directory",
-                      titleTextStyle: listItemTitleTextStyle(context),
-                      onTap: () {
-                        setState(() => showHomeView = false);
-                        controller.openDirectory(Directory(homeDir));
-                      },
-                      iconColor: context.colorScheme.primaryContainer,
-                      iconPath: Images.home,
-                      iconSize: const Size(24, 24)),
+                    title: "Home directory",
+                    titleTextStyle: listItemTitleTextStyle(context),
+                    onTap: () {
+                      setState(() => showHomeView = false);
+                      controller.openDirectory(Directory(homeDir));
+                    },
+                    iconColor: context.colorScheme.primaryContainer,
+                    iconPath: Images.home,
+                  ),
                   // Downloads
                   SectionListItems.leadingIcon(
-                      title: "Downloads",
-                      titleTextStyle: listItemTitleTextStyle(context),
-                      onTap: () {
-                        setState(() => showHomeView = false);
-                        controller.openDirectory(Directory(downloadsDir));
-                      },
-                      iconColor: context.colorScheme.primaryContainer,
-                      iconPath: Images.downloads,
-                      iconSize: const Size(24, 24)),
+                    title: "Downloads",
+                    titleTextStyle: listItemTitleTextStyle(context),
+                    onTap: () {
+                      setState(() => showHomeView = false);
+                      controller.openDirectory(Directory(downloadsDir));
+                    },
+                    iconColor: context.colorScheme.primaryContainer,
+                    iconPath: Images.downloads,
+                  ),
 
                   // Documents
                   SectionListItems.leadingIcon(
-                      title: "Documents",
-                      titleTextStyle: listItemTitleTextStyle(context),
-                      onTap: () {
-                        setState(() => showHomeView = false);
-                        controller.openDirectory(Directory(documentsDir));
-                      },
-                      iconColor: context.colorScheme.primaryContainer,
-                      iconPath: Images.homeDocuments,
-                      iconSize: const Size(24, 24)),
+                    title: "Documents",
+                    titleTextStyle: listItemTitleTextStyle(context),
+                    onTap: () {
+                      setState(() => showHomeView = false);
+                      controller.openDirectory(Directory(documentsDir));
+                    },
+                    iconColor: context.colorScheme.primaryContainer,
+                    iconPath: Images.homeDocuments,
+                  ),
                 ]),
 
             // Root dir
@@ -499,7 +539,7 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
                 theme: MechanixSectionListThemeData(
                   backgroundColor: WidgetStateProperty.all(Colors.transparent),
                   titleTextStyle: TextStyle(
-                    fontSize: 18,
+                    fontSize: 20,
                     color: context.colorScheme.onSecondaryFixed,
                     fontWeight: FontWeight.w500,
                   ),
@@ -514,7 +554,6 @@ class ExtractBottomSheetContentState extends State<ExtractBottomSheetContent> {
                     },
                     iconColor: context.colorScheme.primaryContainer,
                     iconPath: Images.hardDrive,
-                    iconSize: const Size(24, 24),
                   ),
                 ]),
           ],

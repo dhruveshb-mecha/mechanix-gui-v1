@@ -6,6 +6,8 @@ use std::time::Duration;
 use theme::prelude::{AlphaExt, Fonts, Theme};
 use upower::interfaces::device::{BatteryLevel, BatteryState};
 
+pub const STATUS_ICON_GAP: f32 = 20.0;
+
 pub struct StatusBar {
     pub wireless_connected: bool,
     pub bluetooth_connected: bool,
@@ -253,16 +255,16 @@ pub fn status_bar_components(
                 .font_weight(FontWeight::NORMAL)
                 .line_height(px(1.2))
                 .text_color(colors.foreground_200)
-                .text_size(px(16.)),
+                .text_size(px(18.)),
         )
         .child(
             div()
                 .flex()
-                .gap_3()
-                .child(img(wireless_icon_path).w(px(20.)).h(px(20.)))
+                .gap(px(STATUS_ICON_GAP))
+                .child(img(wireless_icon_path).w(px(24.)).h(px(24.)))
                 .when(bluetooth_enabled, |this_div| {
-                    this_div.child(img(bluetooth_icon_path).w(px(20.)).h(px(20.)))
+                    this_div.child(img(bluetooth_icon_path).w(px(24.)).h(px(24.)))
                 })
-                .child(img(battery_icon_path).w(px(20.)).h(px(20.))),
+                .child(img(battery_icon_path).w(px(24.)).h(px(24.))),
         )
 }

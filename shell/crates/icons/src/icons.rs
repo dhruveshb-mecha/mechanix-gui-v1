@@ -81,6 +81,7 @@ pub struct NotificationIcons {
     pub navbar_gray: PathBuf,
     pub navbar: PathBuf,
     pub bell: PathBuf,
+    pub up_arrow: PathBuf,
 }
 
 impl Default for NotificationIcons {
@@ -92,6 +93,7 @@ impl Default for NotificationIcons {
             navbar_gray: PathBuf::from(format!("{}notifications/navbar-gray.png", ICONS_BASE_PATH)),
             navbar: PathBuf::from(format!("{}notifications/navbar.png", ICONS_BASE_PATH)),
             bell: PathBuf::from(format!("{}notifications/bell.svg", ICONS_BASE_PATH)),
+            up_arrow: PathBuf::from(format!("{}notifications/up-arrow.png", ICONS_BASE_PATH)),
         }
     }
 }
@@ -116,12 +118,17 @@ impl Default for PowerOptionsIcons {
 #[serde(rename_all = "kebab-case")]
 pub struct RunningAppsIcons {
     pub cleanup: PathBuf,
+    pub running_app_bg: PathBuf,
 }
 
 impl Default for RunningAppsIcons {
     fn default() -> Self {
         Self {
             cleanup: PathBuf::from(format!("{}running-apps/cleanup.svg", ICONS_BASE_PATH)),
+            running_app_bg: PathBuf::from(format!(
+                "{}running-apps/running-app-bg.png",
+                ICONS_BASE_PATH
+            )),
         }
     }
 }
@@ -748,8 +755,14 @@ pub struct ToastIcons {
 impl Default for ToastIcons {
     fn default() -> Self {
         Self {
-            extension_attached: PathBuf::from(format!("{}toast/extension_attached.png", ICONS_BASE_PATH)),
-            extension_detached: PathBuf::from(format!("{}toast/extension_detached.png", ICONS_BASE_PATH)),
+            extension_attached: PathBuf::from(format!(
+                "{}toast/extension_attached.png",
+                ICONS_BASE_PATH
+            )),
+            extension_detached: PathBuf::from(format!(
+                "{}toast/extension_detached.png",
+                ICONS_BASE_PATH
+            )),
             close: PathBuf::from(format!("{}toast/cross.png", ICONS_BASE_PATH)),
         }
     }

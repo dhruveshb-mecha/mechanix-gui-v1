@@ -123,7 +123,7 @@ impl Render for Lockscreen {
 
         self.update_input_regions(window, show, cx);
 
-        let overlay_color = hsla(0.0, 0.0, 0.0, 0.75);
+        let overlay_color = hsla(0.0, 0.0, 0.0, 0.95);
         let text_color = colors.accent_200;
         let unlock_prompt_bg_color = colors.background_1000;
         let show_arrow_prompt = self.show_arrow_prompt;
@@ -191,9 +191,9 @@ impl Render for Lockscreen {
                                 .items_center()
                                 .justify_center()
                                 .mx_auto()
-                                .child(time_str)
-                                .text_size(px(42.))
-                                .line_height(px(1.25))
+                                .child(time_str) 
+                                   .text_size(px(44.))
+                                .line_height(px(1.27))
                                 .font_weight(FontWeight::BOLD)
                                 .font_family(Fonts::global(cx).primary.clone())
                                 .text_color(colors.foreground_100),
@@ -207,9 +207,9 @@ impl Render for Lockscreen {
                                 .items_center()
                                 .justify_center()
                                 .mx_auto()
-                                .child(date_str)
-                                .text_size(px(26.))
-                                .line_height(px(1.25))
+                                .child(date_str) 
+                                   .text_size(px(28.))
+                                .line_height(px(1.27))
                                 .font_family(Fonts::global(cx).primary.clone())
                                 .text_color(colors.foreground_0),
                         )

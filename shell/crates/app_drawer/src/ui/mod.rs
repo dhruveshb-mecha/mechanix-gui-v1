@@ -24,7 +24,7 @@ const MODAL_ANIMATION_FRAME_MS: u64 = 16;
 const SEARCH_BAR_HEIGHT: f32 = 56.0;
 const GRID_ROW_HEIGHT: f32 = 126.0;
 const SECTION_SPACING: f32 = 15.0;
-const APP_ROW_HEIGHT: f32 = 60.0;
+const APP_ROW_HEIGHT: f32 = 50.0;
 const FLOATING_BTN_SIZE: f32 = 56.0;
 const FLOATING_BTN_BOTTOM: f32 = 16.0;
 const FLOATING_BTN_RIGHT: f32 = 16.0;
@@ -37,7 +37,6 @@ pub struct AppDrawer {
     scroll_offset: Pixels,
     last_scroll_offset: Pixels,
     all_apps: Vec<AppInfo>,
-
     drag_start_y: Pixels,
     drag_start_x: Pixels,
     is_dragging: bool,
@@ -65,6 +64,7 @@ pub struct AppDrawer {
     pub modal_current_center: (f32, f32),
     pub modal_target_center: (f32, f32),
     pub modal_current_size: (f32, f32),
+    active_icon_id: Option<String>,
 }
 
 impl AppDrawer {
@@ -104,6 +104,7 @@ impl AppDrawer {
             modal_current_center: (0.0, 0.0),
             modal_target_center: (0.0, 0.0),
             modal_current_size: MIN_MODAL_SIZE,
+            active_icon_id: None,
         };
 
         cx.spawn(async move |this, cx| match MxSearchService::new().await {
@@ -143,6 +144,10 @@ impl AppDrawer {
         let mut grouped: HashMap<String, Vec<AppInfo>> = HashMap::new();
 
         for app in apps {
+            if !Self::has_valid_icon(&app.icon_path) {
+                continue;
+            }
+
             let mut has_valid_category = false;
 
             for category in &app.categories {
@@ -447,9 +452,14 @@ impl AppDrawer {
     }
 
     fn render_search_bar(&self, cx: &mut Context<Self>) -> impl IntoElement {
-        let text_input = self.text_input.clone();
-        let colors = Theme::global(cx).colors.clone();
         let icons = Icons::global(cx).app_drawer.clone();
+        let colors = Theme::global(cx).colors.clone();
+        let text_input = self.text_input.clone();
+
+        text_input.update(cx, |input, _| {
+            input.placeholder_color = Some(colors.accent_300.with_alpha(0.4));
+            input.placeholder = "Search".into();
+        });
 
         div()
             .id("main-search")
@@ -505,7 +515,7 @@ impl AppDrawer {
                                     .w_full()
                                     .text_size(px(16.0))
                                     .text_color(colors.foreground_200)
-                                    .child(text_input.clone()),
+                                    .child(text_input),
                             ),
                     ),
             )
@@ -586,7 +596,7 @@ impl AppDrawer {
                                 let total = apps.len();
                                 let show_popup = total > 1;
                                 let shown_apps = if show_popup {
-                                    apps.iter().take(6).cloned().collect::<Vec<_>>()
+                                    apps.iter().take(5).cloned().collect::<Vec<_>>()
                                 } else {
                                     apps.clone()
                                 };
@@ -600,27 +610,28 @@ impl AppDrawer {
                                     .h(px(GRID_ROW_HEIGHT))
                                     .cursor_pointer()
                                     .on_click(
-    cx.listener(
-        move |this: &mut AppDrawer, _event, _window, cx| {
-            if !this.has_moved && !this.is_long_press {
-                this.show_subwindow_modal = true;
-                this.subwindow_category = category_for_popup.clone();
-                this.subwindow = None;
-                this.start_modal_animation(cx);
-                cx.notify();
-            }
-            this.has_moved = false;
-            this.is_long_press = false;
-        }
-    )
-)
+                                        cx.listener(
+                                            move |this: &mut AppDrawer, _event, _window, cx| {
+                                                if !this.has_moved && !this.is_long_press {
+                                                    this.show_subwindow_modal = true;
+                                                    this.subwindow_category =
+                                                        category_for_popup.clone();
+                                                    this.subwindow = None;
+                                                    this.start_modal_animation(cx);
+                                                    cx.notify();
+                                                }
+                                                this.has_moved = false;
+                                                this.is_long_press = false;
+                                            }
+                                        )
+                                    )
                                     .child(
                                         div()
                                             .grid()
-                                            .grid_cols(6)
+                                            .grid_cols(5)
                                             .gap(px(28.0))
                                             .bg(colors.background_800)
-                                            .p(px(20.0))
+                                            .p(px(10.0))
                                             .rounded(px(8.0))
                                             .border(px(1.0))
                                             .border_color(colors.background_600)
@@ -639,16 +650,67 @@ impl AppDrawer {
                                                             &app.icon_path,
                                                             cx
                                                         );
+                                                        let is_active =
+                                                            self.active_icon_id.as_ref() ==
+                                                            Some(&app_id);
+
                                                         let app_for_sheet = app.clone();
+                                                        let app_id_for_down = app_id.clone();
+                                                        let app_id_for_up = app_id.clone();
+                                                        let exec_for_up = exec.clone();
 
                                                         div()
                                                             .id(id + idx)
-                                                            .bg(colors.background_800)
                                                             .flex()
                                                             .items_center()
                                                             .justify_center()
-                                                            .rounded(px(5.6))
-                                                            .size(px(56.0))
+                                                            .rounded(px(9.8))
+                                                            .size(px(72.0))
+                                                            .relative()
+                                                            .child(
+                                                                div()
+                                                                    .absolute()
+                                                                    .top_0()
+                                                                    .left_0()
+                                                                    .size_full()
+                                                                    .border(px(1.0))
+                                                                    .opacity(
+                                                                        if is_active {
+                                                                            0.4
+                                                                        } else {
+                                                                            1.0
+                                                                        }
+                                                                    )
+                                                                    .flex()
+                                                                    .items_center()
+                                                                    .justify_center()
+                                                                    .child(icon)
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .id(id + idx + 10)
+                                                                    .absolute()
+                                                                    .top_0()
+                                                                    .left_0()
+                                                                    .flex()
+                                                                    .items_center()
+                                                                    .justify_center()
+                                                                    .size_full()
+                                                                    .rounded(px(9.8))
+                                                                    .bg(colors.foreground_1000)
+                                                                    .opacity(
+                                                                        if is_active {
+                                                                            0.4
+                                                                        } else {
+                                                                            0.0
+                                                                        }
+                                                                    )
+                                                                    .when(!is_active, |div| {
+                                                                        div.active(|this|
+                                                                            this.opacity(1.0)
+                                                                        )
+                                                                    })
+                                                            )
                                                             .on_mouse_down(
                                                                 MouseButton::Left,
                                                                 cx.listener(
@@ -658,6 +720,11 @@ impl AppDrawer {
                                                                         _window,
                                                                         cx
                                                                     | {
+                                                                        // Set active icon - use the cloned value
+                                                                        this.active_icon_id = Some(
+                                                                            app_id_for_down.clone()
+                                                                        );
+
                                                                         this.press_start_time =
                                                                             Some(Instant::now());
                                                                         this.press_app_info = Some(
@@ -675,7 +742,13 @@ impl AppDrawer {
 
                                                                                 this.update(
                                                                                     cx,
-                                                                                    |this, cx| {
+                                                                                    |
+                                                                                        this: &mut AppDrawer,
+                                                                                        cx
+                                                                                    | {
+                                                                                        this.active_icon_id =
+                                                                                            None;
+
                                                                                         if
                                                                                             this.press_start_time.is_some() &&
                                                                                             !this.has_moved &&
@@ -696,6 +769,7 @@ impl AppDrawer {
                                                                             }
                                                                         ).detach();
 
+                                                                        cx.notify();
                                                                         cx.stop_propagation();
                                                                     }
                                                                 )
@@ -709,6 +783,9 @@ impl AppDrawer {
                                                                         _window,
                                                                         cx
                                                                     | {
+                                                                        // Clear active icon
+                                                                        this.active_icon_id = None;
+
                                                                         if
                                                                             let Some(start_time) =
                                                                                 this.press_start_time
@@ -727,14 +804,14 @@ impl AppDrawer {
                                                                                     this.press_app_info.clone();
                                                                                 this.sheet_kind =
                                                                                     BottomSheetKind::MainOptions;
-                                                                                cx.notify();
                                                                             } else if
                                                                                 !this.has_moved &&
                                                                                 !this.is_long_press
                                                                             {
+                                                                                // Use the cloned values here
                                                                                 this.on_app_click(
-                                                                                    app_id.clone(),
-                                                                                    exec.clone(),
+                                                                                    app_id_for_up.clone(),
+                                                                                    exec_for_up.clone(),
                                                                                     cx
                                                                                 );
                                                                             }
@@ -744,17 +821,10 @@ impl AppDrawer {
                                                                             None;
                                                                         this.press_app_info = None;
                                                                         this.has_moved = false;
+                                                                        cx.notify();
                                                                         cx.stop_propagation();
                                                                     }
                                                                 )
-                                                            )
-                                                            .child(
-                                                                div()
-                                                                    .size(px(41.0))
-                                                                    .border(px(1.0))
-                                                                    .items_center()
-                                                                    .justify_center()
-                                                                    .child(icon)
                                                             )
                                                     })
                                             )
@@ -771,8 +841,8 @@ impl AppDrawer {
                                             .justify_start()
                                             .items_start()
                                             // .bg(colors.accent_200.with_alpha(0.1))
-                                            .border_color(colors.background_700);
-                                        w.upper_wing_size(Size::new(px(150.0), px(15.0)));
+                                            .border_color(colors.background_600);
+                                        w.upper_wing_size(Size::new(px(160.0), px(17.0)));
                                         w.border_width(px(1.0));
                                         w.border_radius(px(8.0));
                                         w.corner_radii(commons::widgets::CornerRadii {
@@ -786,15 +856,15 @@ impl AppDrawer {
                                     .child(
                                         div()
                                             .absolute()
-                                            .bottom_5()
+                                            .bottom(px(6.0))
                                             .left_6()
                                             .font_weight(FontWeight(400.0))
-                                            .text_size(px(16.0))
-                                            .line_height(px(1.25))
+                                            .text_size(px(18.0))
+                                            .line_height(px(22.5))
                                             .text_color(colors.foreground_300)
                                             .child(category.clone())
                                             .text_ellipsis()
-                                            .w(px(120.0))
+                                            .w(px(140.0))
                                     )
                             })
                     )
@@ -864,8 +934,8 @@ impl AppDrawer {
                                     .child(
                                         div()
                                             .font_weight(FontWeight(500.0))
-                                            .line_height(px(1.2))
-                                            .text_size(px(16.0))
+                                            .line_height(px(21.6))
+                                            .text_size(px(18.0))
                                             .text_color(colors.foreground_600)
                                             .child(name),
                                     ),
@@ -889,10 +959,16 @@ impl AppDrawer {
             _ => img(icons.default_app).size_full(),
         }
     }
+    fn has_valid_icon(icon_path: &Option<String>) -> bool {
+        match icon_path {
+            Some(path) if !path.trim().is_empty() => std::path::Path::new(path).exists(),
+            _ => false,
+        }
+    }
 
     fn render_subwindow_modal(
         &mut self,
-        app_drawer_size: Size<Pixels>,
+        _app_drawer_size: Size<Pixels>,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let colors = Theme::global(cx).colors.clone();
@@ -921,7 +997,6 @@ impl AppDrawer {
         let center_y = (screen_height - modal_height) / 2.0;
 
         // Animation: scale from 0.9 to 1.0 and fade in
-        let scale = 0.9 + (0.1 * progress);
         let opacity = progress;
 
         div()
@@ -1078,7 +1153,7 @@ impl Render for AppDrawer {
                 .when(self.show_bottom_sheet, |menu_div| {
                     let bottom_sheet_height = match self.sheet_kind {
                         BottomSheetKind::MainOptions => px(280.0),
-                        BottomSheetKind::ConfirmDelete => px(239.0),
+                        BottomSheetKind::ConfirmDelete => px(250.0),
                         BottomSheetKind::Properties => px(320.0),
                         BottomSheetKind::None => px(0.0),
                     };

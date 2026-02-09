@@ -104,8 +104,8 @@ class FileDetailsDialog extends StatelessWidget {
                                     const SizedBox(width: 8),
                                     Image.asset(
                                       fileItem.iconPath,
-                                      width: 24,
-                                      height: 24,
+                                      width: 26,
+                                      height: 26,
                                       color:
                                           context.colorScheme.primaryContainer,
                                     ),

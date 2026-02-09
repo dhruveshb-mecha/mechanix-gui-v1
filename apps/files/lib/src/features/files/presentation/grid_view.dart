@@ -33,7 +33,7 @@ Widget buildGridView(
         // Show message if folder is empty
         return Center(
           child: Text(
-            isSearching ? "No results found" : "Folder is empty",
+            isSearching ? "No results found" : "No items yet",
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: context.colorScheme.onSecondaryFixed,
                 ),
@@ -54,7 +54,7 @@ Widget buildGridView(
               const EdgeInsets.only(left: 20, top: 20, right: 20, bottom: 80),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
-            crossAxisSpacing: 30,
+            crossAxisSpacing: 20,
             mainAxisSpacing: 20,
             childAspectRatio: 0.8, // slightly taller to fit name
           ),
@@ -68,8 +68,10 @@ Widget buildGridView(
             return LayoutBuilder(
               builder: (context, constraints) {
                 final size = constraints.maxWidth * 0.8;
-
-                return GestureDetector(
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
                     onTap: () async {
                       if (isSelectionMode) {
                         state?.toggleSelection(entity.path);
@@ -80,9 +82,7 @@ Widget buildGridView(
                         await controller.openDirectory(entity);
                         scrollController.jumpTo(0);
 
-                        if (isSearching) {
-                          state?.clearSearch();
-                        }
+                        if (isSearching) state?.clearSearch();
                       } else {
                         handleFileTap(
                           context,
@@ -93,9 +93,7 @@ Widget buildGridView(
                           controller,
                         );
 
-                        if (isSearching) {
-                          state?.clearSearch();
-                        }
+                        if (isSearching) state?.clearSearch();
                       }
                     },
                     onLongPress: () => state?.toggleSelection(fullPath),
@@ -146,14 +144,16 @@ Widget buildGridView(
                             title,
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: 18,
                               color: context.colorScheme.onSurface,
                               fontWeight: FontWeight.w400,
                             ),
                           ),
                         ),
                       ],
-                    ));
+                    ),
+                  ),
+                );
               },
             );
           },
@@ -194,7 +194,7 @@ Widget buildGridViewForRecentFiles(
       padding: const EdgeInsets.only(left: 20, top: 20, right: 20, bottom: 80),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 30,
+        crossAxisSpacing: 20,
         mainAxisSpacing: 20,
         childAspectRatio: 0.8,
       ),
@@ -209,64 +209,68 @@ Widget buildGridViewForRecentFiles(
           builder: (context, constraints) {
             final size = constraints.maxWidth * 0.8;
 
-            return GestureDetector(
-              onTap: () {
-                handleTap(
-                  context,
-                  file,
-                  [], // recent files have no path hierarchy
-                  fullPath,
-                  isSelectionMode,
-                  state,
-                );
-              },
-              onLongPress: () => state?.toggleSelection(fullPath),
-              onSecondaryTap: () => state?.toggleSelection(fullPath),
-              child: Column(
-                children: [
-                  Container(
-                    width: size,
-                    height: size,
-                    decoration: BoxDecoration(
-                      color: context.colorScheme.secondary,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: Image.asset(
-                            file.iconPath,
-                            width: size * 0.5,
-                            height: size * 0.5,
-                            fit: BoxFit.contain,
-                            color: context.colorScheme.primaryContainer,
-                          ),
-                        ),
-                        if (isSelectionMode)
-                          Positioned(
-                            left: 0,
-                            bottom: 0,
-                            child: CustomCircleCheckbox(
-                              isChecked: isSelected,
-                              onTap: () => state?.toggleSelection(fullPath),
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () {
+                  handleTap(
+                    context,
+                    file,
+                    [], // recent files have no path hierarchy
+                    fullPath,
+                    isSelectionMode,
+                    state,
+                  );
+                },
+                onLongPress: () => state?.toggleSelection(fullPath),
+                onSecondaryTap: () => state?.toggleSelection(fullPath),
+                child: Column(
+                  children: [
+                    Container(
+                      width: size,
+                      height: size,
+                      decoration: BoxDecoration(
+                        color: context.colorScheme.secondary,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Stack(
+                        children: [
+                          Center(
+                            child: Image.asset(
+                              file.iconPath,
+                              width: size * 0.5,
+                              height: size * 0.5,
+                              fit: BoxFit.contain,
+                              color: context.colorScheme.primaryContainer,
                             ),
                           ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Flexible(
-                    child: MiddleEllipsisText(
-                      file.name,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: context.colorScheme.onSurface,
-                        fontWeight: FontWeight.w400,
+                          if (isSelectionMode)
+                            Positioned(
+                              left: 0,
+                              bottom: 0,
+                              child: CustomCircleCheckbox(
+                                isChecked: isSelected,
+                                onTap: () => state?.toggleSelection(fullPath),
+                              ),
+                            ),
+                        ],
                       ),
-                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 6),
+                    Flexible(
+                      child: MiddleEllipsisText(
+                        file.name,
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: context.colorScheme.onSurface,
+                          fontWeight: FontWeight.w400,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             );
           },

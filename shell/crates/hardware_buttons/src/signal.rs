@@ -34,7 +34,7 @@ pub fn init(cx: &mut App) {
 
     cx.spawn(async move |app| {
         while let Some(event) = rx.next().await {
-            if let Some(message) = handle::build_message_for_event(event).await {
+            if let Some(message) = handle::build_message_for_event(event, &app).await {
                 let _ = app.update(|cx| {
                     if !cx.has_global::<Dispatcher>() {
                         warn!("dispatcher missing; dropping hardware button event");
@@ -105,7 +105,7 @@ async fn listen_on_path(label: &str, path: &str, mut tx: mpsc::Sender<KeyEvent>)
             let event = payload.event;
             info!(
                 target: "hw-buttons",
-                "received {label} signal from {path}: {event:?}"
+                "received {label} on evdev signal from {path}: {event:?}"
             );
             if tx.send(event).await.is_err() {
                 warn!("event channel closed; stopping {label} listener");

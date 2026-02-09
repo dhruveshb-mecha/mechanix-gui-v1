@@ -30,7 +30,7 @@ Widget buildListView(
         // Show message if folder is empty
         return Center(
           child: Text(
-            isSearching ? "No results found" : "Folder is empty",
+            isSearching ? "No results found" : "No items yet",
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: context.colorScheme.onSecondaryFixed,
                 ),
@@ -65,93 +65,96 @@ Widget buildListView(
             final modified = entity.statSync().modified;
             final isSelected = selectedPaths.contains(entity.path);
             final isNew = entity.path == controller.newFolderPath;
-
-            return GestureDetector(
-              onSecondaryTap: () => state?.toggleSelection(entity.path),
-              onLongPress: () => state?.toggleSelection(entity.path),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isNew
-                      ? context.colorScheme.secondaryContainer
-                      : isSelected
-                          ? context.colorScheme.secondaryContainer
-                          : Colors.transparent,
-                ),
-                child: ListTile(
-                  minTileHeight: 36,
-                  contentPadding: const EdgeInsets.only(
-                      bottom: 10, top: 10, left: 16, right: 16),
-                  leading: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isSelectionMode)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 16),
-                          child: CustomCircleCheckbox(
-                            isChecked: isSelected,
-                            onTap: () => state?.toggleSelection(entity.path),
+            return Padding(
+              padding: const EdgeInsets.symmetric(
+                  vertical: 1), // spacing between items
+              child: GestureDetector(
+                onSecondaryTap: () => state?.toggleSelection(entity.path),
+                onLongPress: () => state?.toggleSelection(entity.path),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isNew
+                        ? context.colorScheme.secondaryContainer
+                        : isSelected
+                            ? context.colorScheme.secondaryContainer
+                            : Colors.transparent,
+                  ),
+                  child: ListTile(
+                    minTileHeight: 36,
+                    contentPadding: const EdgeInsets.only(
+                        bottom: 8, top: 8, left: 16, right: 16),
+                    leading: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isSelectionMode)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 16),
+                            child: CustomCircleCheckbox(
+                              isChecked: isSelected,
+                              onTap: () => state?.toggleSelection(entity.path),
+                            ),
+                          ),
+                        Container(
+                          width: 36,
+                          height: 36,
+                          padding: const EdgeInsets.all(6),
+                          child: Center(
+                            child: Image.asset(
+                              entity.iconPath,
+                              fit: BoxFit.contain,
+                              width: 24,
+                              height: 24,
+                              color: context.colorScheme.primaryContainer,
+                            ),
                           ),
                         ),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        padding: const EdgeInsets.all(6),
-                        child: Center(
-                          child: Image.asset(
-                            entity.iconPath,
-                            fit: BoxFit.contain,
-                            width: 28,
-                            height: 28,
-                            color: context.colorScheme.primaryContainer,
-                          ),
-                        ),
+                      ],
+                    ),
+                    title: MiddleEllipsisText(
+                      title,
+                      style: TextStyle(
+                        fontSize: 20,
+                        color: context.colorScheme.onSurface,
+                        fontWeight: FontWeight.w400,
                       ),
-                    ],
-                  ),
-                  title: MiddleEllipsisText(
-                    title,
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: context.colorScheme.onSurface,
-                      fontWeight: FontWeight.w400,
                     ),
-                  ),
-                  trailing: Text(
-                    formatModifiedTime(modified),
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: context.colorScheme.onSecondaryFixed,
-                      fontWeight: FontWeight.w400,
+                    trailing: Text(
+                      formatModifiedTime(modified),
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: context.colorScheme.onSecondaryFixed,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
+                    onTap: () async {
+                      if (isSelectionMode) {
+                        state?.toggleSelection(entity.path);
+                        return;
+                      }
+
+                      if (FileManager.isDirectory(entity)) {
+                        await controller.openDirectory(entity);
+                        scrollController.jumpTo(0);
+
+                        if (isSearching) {
+                          state?.clearSearch();
+                        }
+                      } else {
+                        handleFileTap(
+                          context,
+                          entity,
+                          entity.path,
+                          isSelectionMode,
+                          state,
+                          controller,
+                        );
+
+                        if (isSearching) {
+                          state?.clearSearch();
+                        }
+                      }
+                    },
                   ),
-                  onTap: () async {
-                    if (isSelectionMode) {
-                      state?.toggleSelection(entity.path);
-                      return;
-                    }
-
-                    if (FileManager.isDirectory(entity)) {
-                      await controller.openDirectory(entity);
-                      scrollController.jumpTo(0);
-
-                      if (isSearching) {
-                        state?.clearSearch();
-                      }
-                    } else {
-                      handleFileTap(
-                        context,
-                        entity,
-                        entity.path,
-                        isSelectionMode,
-                        state,
-                        controller,
-                      );
-
-                      if (isSearching) {
-                        state?.clearSearch();
-                      }
-                    }
-                  },
                 ),
               ),
             );
@@ -205,7 +208,7 @@ Widget buildListViewForRecentFiles(
           child: ListTile(
             minTileHeight: 36,
             contentPadding:
-                const EdgeInsets.only(bottom: 10, top: 10, left: 16, right: 16),
+                const EdgeInsets.only(bottom: 8, top: 8, left: 16, right: 16),
             leading: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -218,15 +221,15 @@ Widget buildListViewForRecentFiles(
                     ),
                   ),
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 36,
+                  height: 36,
                   padding: const EdgeInsets.all(6),
                   child: Center(
                     child: Image.asset(
                       file.iconPath,
                       fit: BoxFit.contain,
-                      width: 28,
-                      height: 28,
+                      width: 24,
+                      height: 24,
                       color: context.colorScheme.primaryContainer,
                     ),
                   ),
@@ -236,7 +239,7 @@ Widget buildListViewForRecentFiles(
             title: MiddleEllipsisText(
               file.name,
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 20,
                 color: context.colorScheme.onSurface,
                 fontWeight: FontWeight.w400,
               ),
@@ -245,7 +248,7 @@ Widget buildListViewForRecentFiles(
                 ? Text(
                     formatModifiedTime(file.modified!),
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 18,
                       color: context.colorScheme.onSecondaryFixed,
                       fontWeight: FontWeight.w400,
                     ),
@@ -283,9 +286,11 @@ Widget buildListViewMoveAndExtract(
     builder: (context, entities, _) {
       if (entities.isEmpty) {
         // Show message if folder is empty
-        return Center(
+        return Padding(
+          padding: const EdgeInsets.only(
+              bottom: 8, top: 8, left: 16, right: 16), // space above Move bar
           child: Text(
-            isSearching ? "No results found" : "Folder is empty",
+            isSearching ? "No results found" : "No items yet",
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: context.colorScheme.onSecondaryFixed,
                 ),
@@ -315,7 +320,7 @@ Widget buildListViewMoveAndExtract(
           itemCount: entities.length,
           itemBuilder: (context, index) {
             final entity = entities[index];
-            final title = FileManager.basename(entity);
+            final title = controller.getDisplayName(entity);
             final modified = entity.statSync().modified;
             final isSelected = selectedPaths.contains(entity.path);
             final isNew = entity.path == controller.newFolderPath;
@@ -341,7 +346,7 @@ Widget buildListViewMoveAndExtract(
                     child: ListTile(
                       minTileHeight: 36,
                       contentPadding: const EdgeInsets.only(
-                          bottom: 10, top: 10, left: 16, right: 16),
+                          bottom: 8, top: 8, left: 16, right: 16),
                       leading: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -355,15 +360,15 @@ Widget buildListViewMoveAndExtract(
                               ),
                             ),
                           Container(
-                            width: 40,
-                            height: 40,
+                            width: 36,
+                            height: 36,
                             padding: const EdgeInsets.all(6),
                             child: Center(
                               child: Image.asset(
                                 entity.iconPath,
                                 fit: BoxFit.contain,
-                                width: 28,
-                                height: 28,
+                                width: 24,
+                                height: 24,
                                 color: context.colorScheme.primaryContainer,
                               ),
                             ),
@@ -373,7 +378,7 @@ Widget buildListViewMoveAndExtract(
                       title: MiddleEllipsisText(
                         title,
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           color: context.colorScheme.onSurface,
                           fontWeight: FontWeight.w400,
                         ),
@@ -381,7 +386,7 @@ Widget buildListViewMoveAndExtract(
                       trailing: Text(
                         formatModifiedTime(modified),
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 18,
                           color: context.colorScheme.onSecondaryFixed,
                           fontWeight: FontWeight.w400,
                         ),

@@ -1,11 +1,9 @@
 use dispatcher::Message;
 use hw_buttons::{Key, KeyEvent};
 use mxconf_dbus::set_setting;
-use rusb::{
-    DeviceHandle, DeviceList
-    , Language, Result, UsbContext,
-};
+use rusb::{DeviceHandle, DeviceList, Language, Result, UsbContext};
 use std::fmt;
+use std::process::Command;
 use std::time::Duration;
 
 struct UsbDevice<T: UsbContext> {
@@ -33,8 +31,8 @@ impl fmt::Display for Extension {
         write!(f, "{s}")
     }
 }
-pub async fn build_message_for_event(event: KeyEvent) -> Option<Message> {
-    println!("hardware_buttons: received hardware button event: {event:?}");
+pub async fn build_message_for_event(event: KeyEvent, cx: &gpui::AsyncApp) -> Option<Message> {
+    println!("hardware_buttons: received hardware button event from evdev: {event:?}");
 
     let mut message: Option<Message> = None;
 
@@ -101,40 +99,54 @@ pub async fn build_message_for_event(event: KeyEvent) -> Option<Message> {
         }
 
         KeyEvent::Pressed(Key::ExtensionDetection) => {
-            println!("HARDWARE EXTENTION DETCTION EVENT:PRESSED");
-            message = Some(Message::SetExtensionDetected(true));
+            println!("hardware_buttons: extension detection pressed");
+            // message = Some(Message::SetExtensionDetected(true));
+            let executor = cx.background_executor().clone();
+            cx.background_executor()
+                .spawn(async move {
+                    executor.timer(Duration::from_millis(1200)).await;
+                })
+                .await;
+
             let detected_extension_name = match get_detected_extension_name().await {
                 Ok(extension) => extension,
                 Err(_) => Extension::Unknown,
             };
-            message = Some(Message::SetExtensionName(detected_extension_name.to_string()));
+            // message = Some(Message::SetExtensionName(detected_extension_name.to_string()));
             set_setting("org.mechanix.desktop.settings.extension.detected", "true").await;
-            set_setting("org.mechanix.desktop.settings.extension.name", &detected_extension_name.to_string()).await;
-            println!("hardware_buttons: extension detection pressed");
+            set_setting(
+                "org.mechanix.desktop.settings.extension.name",
+                &detected_extension_name.to_string(),
+            )
+            .await;
         }
         KeyEvent::Pressing(Key::ExtensionDetection) => {
             println!("hardware_buttons: extension detection pressing");
-            message = Some(Message::SetExtensionDetected(true));
+            // message = Some(Message::SetExtensionDetected(true));
             let detected_extension_name = match get_detected_extension_name().await {
                 Ok(extension) => extension,
                 Err(_) => Extension::Unknown,
             };
+            match detected_extension_name {
+                Extension::Keyboard => {
+                    set_screen_keyboard(false);
+                }
+                _ => {}
+            }
             set_setting("org.mechanix.desktop.settings.extension.detected", "true").await;
-            set_setting("org.mechanix.desktop.settings.extension.name", &detected_extension_name.to_string()).await;
-            message = Some(Message::SetExtensionName(detected_extension_name.to_string()));
+            set_setting(
+                "org.mechanix.desktop.settings.extension.name",
+                &detected_extension_name.to_string(),
+            )
+            .await;
+            // message = Some(Message::SetExtensionName(detected_extension_name.to_string()));
         }
         KeyEvent::Released(Key::ExtensionDetection) => {
-            println!("HARDWARE EXTENTION DETCTION EVENT:released");
-            message = Some(Message::SetExtensionDetected(false));
-            let detected_extension_name = match get_detected_extension_name().await {
-                Ok(extension) => extension,
-                Err(_) => Extension::Unknown,
-            };
-            set_setting("org.mechanix.desktop.settings.extension.detected", "false").await;
-            set_setting("org.mechanix.desktop.settings.extension.name", &detected_extension_name.to_string()).await;
-
-            message = Some(Message::SetExtensionName(detected_extension_name.to_string()));
             println!("hardware_buttons: extension detection released");
+            set_screen_keyboard(true);
+            set_setting("org.mechanix.desktop.settings.extension.detected", "false").await;
+
+            // message = Some(Message::SetExtensionName(detected_extension_name.to_string()));
         }
         KeyEvent::Unknown(Key::ExtensionDetection) => {
             println!("hardware_buttons: extension detection unknown event");
@@ -159,55 +171,72 @@ pub async fn build_message_for_event(event: KeyEvent) -> Option<Message> {
 
 async fn get_detected_extension_name() -> Result<Extension> {
     let timeout = Duration::from_secs(1);
-    for device in DeviceList::new()?.iter() {
-        let device_desc = match device.device_descriptor() {
-            Ok(d) => d,
-            Err(_) => continue,
-        };
 
-        let mut usb_device = {
-            match device.open() {
+    for _attempt in 0..10 {
+        for device in DeviceList::new()?.iter() {
+            let device_desc = match device.device_descriptor() {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
+
+            let _usb_device = match device.open() {
                 Ok(h) => match h.read_languages(timeout) {
-                    Ok(l) => {
-                        if !l.is_empty() {
-                            Some(UsbDevice {
-                                handle: h,
-                                language: l[0],
-                                timeout,
-                            })
-                        } else {
-                            None
-                        }
-                    }
-                    Err(_) => None,
+                    Ok(l) if !l.is_empty() => Some(UsbDevice {
+                        handle: h,
+                        language: l[0],
+                        timeout,
+                    }),
+                    _ => None,
                 },
                 Err(_) => None,
+            };
+
+            println!(
+                "Bus {:03} Device {:03} ID {:04x}:{:04x}",
+                device.bus_number(),
+                device.address(),
+                device_desc.vendor_id(),
+                device_desc.product_id(),
+            );
+
+            let vendor_id = device_desc.vendor_id();
+            let product_id = device_desc.product_id();
+
+            if let Some(extension) = extension_from_vid_pid(vendor_id, product_id) {
+                println!("  → Detected {:?}", extension);
+                return Ok(extension);
             }
-        };
-
-        let vendor_id = device_desc.vendor_id();
-        let product_id = device_desc.product_id();
-
-        if let Some(extension) = extension_from_vid_pid(vendor_id, product_id) {
-            println!("  → Detected {:?}", extension);
-            return Ok(extension);
         }
-        println!(
-            "Bus {:03} Device {:03} ID {:04x}:{:04x}",
-            device.bus_number(),
-            device.address(),
-            device_desc.vendor_id(),
-            device_desc.product_id(),
-        );
     }
+
     Ok(Extension::Unknown)
 }
 
 pub fn extension_from_vid_pid(vendor_id: u16, product_id: u16) -> Option<Extension> {
     match (vendor_id, product_id) {
-        (0xCE07, 0x0001) => Some(Extension::Keyboard),
-        (0xCE07, 0x0002) => Some(Extension::Gamepad),
-        (0xCE07, 0x0003) => Some(Extension::Gpio),
-        _ => Some(Extension::Gpio),
+        (0xce07, 0x0001) => Some(Extension::Keyboard),
+        (0xce07, 0x0002) => Some(Extension::Gamepad),
+        (0x0483, 0x572b) => Some(Extension::Gamepad),
+        (0xce07, 0x0003) => Some(Extension::Gpio),
+        _ => None, // ← IMPORTANT
     }
+}
+
+fn set_screen_keyboard(enabled: bool) -> std::io::Result<()> {
+    let value = if enabled { "true" } else { "false" };
+
+    let status = Command::new("gsettings")
+        .args([
+            "set",
+            "org.gnome.desktop.a11y.applications",
+            "screen-keyboard-enabled",
+            value,
+        ])
+        .status()?;
+
+    if !status.success() {
+        eprintln!("gsettings failed");
+    }
+
+    Ok(())
 }

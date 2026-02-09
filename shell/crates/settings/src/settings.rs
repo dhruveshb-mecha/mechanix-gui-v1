@@ -174,6 +174,9 @@ pub struct HomescreenSettings {
     pub status_bar_size: Size<Pixels>,
 
     #[serde(default)]
+    pub navbar_size: Size<Pixels>,
+
+    #[serde(default)]
     pub layer_shell: LayerShellSettings,
 
     #[serde(default)]
@@ -184,6 +187,7 @@ impl Default for HomescreenSettings {
     fn default() -> Self {
         Self {
             status_bar_size: Size::new(px(540.0), px(36.0)),
+            navbar_size: Size::new(px(199.22), px(28.5)),
             layer_shell: LayerShellSettings {
                 layer: Layer::Bottom,
                 anchor: Anchor::TOP | Anchor::LEFT | Anchor::RIGHT | Anchor::BOTTOM,
@@ -303,6 +307,8 @@ pub struct KeyboardSettings {
     pub layer_shell: LayerShellSettings,
     #[serde(default)]
     pub default_layout: String,
+    #[serde(default)]
+    pub input_regions: InputRegions,
 }
 
 impl Default for KeyboardSettings {
@@ -316,6 +322,16 @@ impl Default for KeyboardSettings {
                 size: Size::new(px(540.0), px(274.0)),
             },
             default_layout: format!("{}us.yaml", LAYOUTS_BASE_PATH),
+            input_regions: InputRegions {
+                minimized: Region {
+                    origin: point(px(0.0), px(0.0)),
+                    size: Size::new(px(0.0), px(0.0)),
+                },
+                maximized: Region {
+                    origin: point(px(0.0), px(346.0)),
+                    size: Size::new(px(540.0), px(274.0)),
+                },
+            },
         }
     }
 }
