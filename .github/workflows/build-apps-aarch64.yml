@@ -96,6 +96,26 @@ jobs:
           echo "deb https://apt.fury.io/nushell/ /" | sudo tee /etc/apt/sources.list.d/fury.list
           sudo apt update
           sudo apt install nushell
+
+      - name: Install PDFium (ARM64)
+        run: |
+          set -eux
+
+          PDFIUM_URL="https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-arm64.tgz"
+
+          curl -L "$PDFIUM_URL" -o pdfium.tgz
+          tar -xzf pdfium.tgz
+
+          # install library
+          sudo cp pdfium/lib/libpdfium.so /usr/local/lib/
+          sudo cp -r pdfium/include /usr/local/
+
+          # refresh linker cache
+          sudo ldconfig
+
+          # verify
+          ls -l /usr/local/lib/libpdfium.so
+
       # Add Comet repository
       - name: Add Comet repository
         run: |
