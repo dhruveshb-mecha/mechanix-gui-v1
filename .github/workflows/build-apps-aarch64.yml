@@ -33,6 +33,7 @@ jobs:
       notes: ${{ steps.filter.outputs.notes }}
       files: ${{ steps.filter.outputs.files }}
       music: ${{ steps.filter.outputs.music }}
+      camera: ${{ steps.filter.outputs.camera }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -216,6 +217,7 @@ jobs:
           if [[ "${{ matrix.app }}" == "notes" && "${{ needs.detect-changes.outputs.notes }}" == "true" ]]; then SHOULD_PUBLISH="true"; fi
           if [[ "${{ matrix.app }}" == "files" && "${{ needs.detect-changes.outputs.files }}" == "true" ]]; then SHOULD_PUBLISH="true"; fi
           if [[ "${{ matrix.app }}" == "music" && "${{ needs.detect-changes.outputs.music }}" == "true" ]]; then SHOULD_PUBLISH="true"; fi
+          if [[ "${{ matrix.app }}" == "camera" && "${{ needs.detect-changes.outputs.camera }}" == "true" ]]; then SHOULD_PUBLISH="true"; fi
 
           echo "should_publish=$SHOULD_PUBLISH" >> $GITHUB_OUTPUT
 
