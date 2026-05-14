@@ -193,6 +193,38 @@ jobs:
       - name: List artifacts ${{ matrix.name }}
         run: ls -la ./build/deb/
 
+      # Check file sizes
+      - name: Check file sizes ${{ matrix.name }}
+        run: |
+          DEB_FILE=$(find ./build/deb -name "mechanix-${{ matrix.app }}*.deb" -type f | head -n1)
+          RPM_FILE=$(find ./build/rpm -name "mechanix-${{ matrix.app }}*.rpm" -type f | head -n1)
+          
+          if [ -f "$DEB_FILE" ]; then
+            DEB_SIZE=$(stat -c%s "$DEB_FILE")
+            DEB_SIZE_MB=$((DEB_SIZE / 1048576))
+            echo "DEB size: $DEB_SIZE_MB MB"
+            if [ "$DEB_SIZE_MB" -lt 1 ]; then
+              echo "DEB file too small: $DEB_SIZE_MB MB"
+              exit 1
+            fi
+          else
+            echo "DEB file not found"
+            exit 1
+          fi
+          
+          if [ -f "$RPM_FILE" ]; then
+            RPM_SIZE=$(stat -c%s "$RPM_FILE")
+            RPM_SIZE_MB=$((RPM_SIZE / 1048576))
+            echo "RPM size: $RPM_SIZE_MB MB"
+            if [ "$RPM_SIZE_MB" -lt 1 ]; then
+              echo "RPM file too small: $RPM_SIZE_MB MB"
+              exit 1
+            fi
+          else
+            echo "RPM file not found"
+            exit 1
+          fi
+
       # Setup Pulp CLI
       - name: Setup | Pulp CLI
         run: |
@@ -221,22 +253,22 @@ jobs:
 
           echo "should_publish=$SHOULD_PUBLISH" >> $GITHUB_OUTPUT
 
-      # - name: Publish DEB
-      #   if: steps.check_publish.outputs.should_publish == 'true'
-      #   run: |
-      #     DEB_FILE=$(find ./build/deb -name "mechanix-${{ matrix.app }}*.deb" -type f | head -n1)
-      #     echo "[INFO] 📦 Publishing DEB: $DEB_FILE"
+      - name: Publish DEB
+        if: steps.check_publish.outputs.should_publish == 'true'
+        run: |
+          DEB_FILE=$(find ./build/deb -name "mechanix-${{ matrix.app }}*.deb" -type f | head -n1)
+          echo "[INFO] 📦 Publishing DEB: $DEB_FILE"
 
-      #     pulp deb content upload --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" --file="$DEB_FILE"
+          pulp deb content upload --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" --file="$DEB_FILE"
 
-      #     PUB_HREF=$(pulp deb publication create \
-      #       --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-      #       --signing-service=mecha-pkg-sign | jq -r '.pulp_href')
+          PUB_HREF=$(pulp deb publication create \
+            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
+            --signing-service=mecha-pkg-sign | jq -r '.pulp_href')
             
-      #     pulp deb distribution update \
-      #       --name="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-      #       --base-path="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
-      #       --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}"
+          pulp deb distribution update \
+            --name="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
+            --base-path="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}" \
+            --repository="${{ vars.MECHA_PULP_DEBS_REPOSITORY_NAME }}"
 
       - name: Publish RPM
         if: steps.check_publish.outputs.should_publish == 'true'
