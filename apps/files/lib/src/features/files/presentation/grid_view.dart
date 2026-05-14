@@ -1,12 +1,13 @@
 import 'dart:io' as io;
 import 'dart:ui';
 
+import 'package:ellipsized_text/ellipsized_text.dart';
 import 'package:flutter/material.dart';
 import 'package:mechanix_files/src/commons/customWidgets/custom_circular_checkbox.dart';
-import 'package:mechanix_files/src/commons/customWidgets/middle_ellipsis_text.dart';
 import 'package:mechanix_files/src/controllers/file_manager_controller.dart';
 import 'package:mechanix_files/src/features/files/models/types.dart';
 import 'package:mechanix_files/src/features/files/presentation/commons.dart';
+import 'package:mechanix_files/src/features/files/presentation/recent_files.dart';
 import 'package:widgets/mechanix.dart';
 import '../../../controllers/file_manager.dart';
 import 'files.dart';
@@ -23,8 +24,10 @@ Widget buildGridView(
   final isSearching = state?.isSearching ?? false;
 
   final screenWidth = MediaQuery.of(context).size.width;
-  final crossAxisCount =
-      (screenWidth ~/ 120).clamp(2, 15); // responsive columns
+  final crossAxisCount = (screenWidth ~/ 120).clamp(
+    2,
+    15,
+  ); // responsive columns
 
   return ValueListenableBuilder<List<io.FileSystemEntity>>(
     valueListenable: controller.paginatedEntities,
@@ -35,23 +38,24 @@ Widget buildGridView(
           child: Text(
             isSearching ? "No results found" : "No items yet",
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: context.colorScheme.onSecondaryFixed,
-                ),
+              color: context.colorScheme.onSecondaryFixed,
+            ),
           ),
         );
       }
 
       return ScrollConfiguration(
         behavior: ScrollConfiguration.of(context).copyWith(
-          dragDevices: {
-            PointerDeviceKind.touch,
-            PointerDeviceKind.mouse,
-          },
+          dragDevices: {PointerDeviceKind.touch, PointerDeviceKind.mouse},
         ),
         child: GridView.builder(
           controller: scrollController,
-          padding:
-              const EdgeInsets.only(left: 20, top: 20, right: 20, bottom: 80),
+          padding: const EdgeInsets.only(
+            left: 20,
+            top: 20,
+            right: 20,
+            bottom: 80,
+          ),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: crossAxisCount,
             crossAxisSpacing: 20,
@@ -109,13 +113,16 @@ Widget buildGridView(
                               decoration: BoxDecoration(
                                 color: context.colorScheme.secondary,
                                 borderRadius: BorderRadius.circular(14),
-                                border: isSelected
-                                    ? Border.all(
-                                        color: context.colorScheme.primaryFixed
-                                            .withOpacity(0.8),
-                                        width: 1,
-                                      )
-                                    : null,
+                                border:
+                                    isSelected
+                                        ? Border.all(
+                                          color: context
+                                              .colorScheme
+                                              .primaryFixed
+                                              .withOpacity(0.8),
+                                          width: 1,
+                                        )
+                                        : null,
                               ),
                               child: Center(
                                 child: Image.asset(
@@ -140,7 +147,8 @@ Widget buildGridView(
                         ),
                         const SizedBox(height: 4),
                         Flexible(
-                          child: MiddleEllipsisText(
+                          child: EllipsizedText(
+                            type: EllipsisType.middle,
                             title,
                             textAlign: TextAlign.center,
                             style: TextStyle(
@@ -167,7 +175,7 @@ Widget buildGridViewForRecentFiles(
   BuildContext context,
   List<io.FileSystemEntity> fileSystemList,
 ) {
-  final state = context.findAncestorStateOfType<FileExplorerPageState>();
+  final state = context.findAncestorStateOfType<RecentFilesPageState>();
   final isSelectionMode = state?.selectionMode ?? false;
   final selectedPaths = state?.selectedPaths ?? {};
 
@@ -175,21 +183,22 @@ Widget buildGridViewForRecentFiles(
   final crossAxisCount = (screenWidth ~/ 120).clamp(2, 15);
 
   // Convert to entries (fullPath, FileItem)
-  final files = fileSystemList.map((entity) {
-    final fullPath = entity.path;
-    final name = p.basename(fullPath);
-    final fileItem = FileItem(
-        name: name, type: p.extension(fullPath).toLowerCase(), children: []);
-    return MapEntry(fullPath, fileItem);
-  }).toList();
+  final files =
+      fileSystemList.map((entity) {
+        final fullPath = entity.path;
+        final name = p.basename(fullPath);
+        final fileItem = FileItem(
+          name: name,
+          type: p.extension(fullPath).toLowerCase(),
+          children: [],
+        );
+        return MapEntry(fullPath, fileItem);
+      }).toList();
 
   return ScrollConfiguration(
-    behavior: ScrollConfiguration.of(context).copyWith(
-      dragDevices: {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-      },
-    ),
+    behavior: ScrollConfiguration.of(
+      context,
+    ).copyWith(dragDevices: {PointerDeviceKind.touch, PointerDeviceKind.mouse}),
     child: GridView.builder(
       padding: const EdgeInsets.only(left: 20, top: 20, right: 20, bottom: 80),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -233,6 +242,14 @@ Widget buildGridViewForRecentFiles(
                       decoration: BoxDecoration(
                         color: context.colorScheme.secondary,
                         borderRadius: BorderRadius.circular(14),
+                        border:
+                            isSelected
+                                ? Border.all(
+                                  color: context.colorScheme.primaryFixed
+                                      .withOpacity(0.8),
+                                  width: 1,
+                                )
+                                : null,
                       ),
                       child: Stack(
                         children: [
@@ -259,7 +276,8 @@ Widget buildGridViewForRecentFiles(
                     ),
                     const SizedBox(height: 6),
                     Flexible(
-                      child: MiddleEllipsisText(
+                      child: EllipsizedText(
+                        type: EllipsisType.middle,
                         file.name,
                         style: TextStyle(
                           fontSize: 18,

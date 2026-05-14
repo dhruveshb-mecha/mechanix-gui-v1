@@ -55,6 +55,8 @@ class Images {
   static const String tv = 'assets/images/tv.png';
   static const String car = 'assets/images/car.png';
   static const String mic = 'assets/images/mic.png';
+  static const String laptop = 'assets/images/laptop.png';
+  static const String computer = 'assets/images/computer.png';
   static const String sunIcon = 'assets/images/sun_icon.png';
   static const String micOn = 'assets/images/mic_on.png';
   static const String micOff = 'assets/images/mic_off.png';
@@ -73,6 +75,7 @@ class Images {
   static const String wifiMediumOpen = 'assets/images/wifi_medium_open.png';
   static const String wifiLowOpen = 'assets/images/wifi_low_open.png';
   static const String wifiNotFound = 'assets/images/wifi_not_found.png';
+  static const String forgetWifi = 'assets/images/forget_wifi.png';
   static const String arrowCounterClockWise =
       'assets/images/arrow_counter_clock_wise.png';
   static const String connectIcon = 'assets/images/connect_icon.png';

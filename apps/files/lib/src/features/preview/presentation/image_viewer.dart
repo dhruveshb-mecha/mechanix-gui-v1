@@ -1,10 +1,9 @@
 import 'dart:io';
 
+import 'package:ellipsized_text/ellipsized_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:mechanix_files/src/commons/constants.dart';
-import 'package:mechanix_files/src/commons/customWidgets/middle_ellipsis_text.dart';
-import 'package:mechanix_files/src/commons/customWidgets/pressable_icon.dart';
 import 'package:mechanix_files/src/controllers/file_manager_controller.dart';
 import 'package:mechanix_files/src/features/files/presentation/commons.dart';
 import 'package:mechanix_files/src/features/files/presentation/files.dart';
@@ -66,26 +65,28 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
           ),
         ),
       ),
-      body: isSvg
-          ? _SvgViewer(imagePath: widget.filePath)
-          : (_isEditing
-              ? ImageEditorPage(
-                  state: widget.state,
-                  imagePath: widget.filePath,
-                  onClose: () {
-                    setState(() {
-                      _isEditing = false;
-                    });
-                  },
-                )
-              : _RasterViewer(imagePath: widget.filePath)),
+      body:
+          isSvg
+              ? _SvgViewer(imagePath: widget.filePath)
+              : (_isEditing
+                  ? ImageEditorPage(
+                    state: widget.state,
+                    imagePath: widget.filePath,
+                    onClose: () {
+                      setState(() {
+                        _isEditing = false;
+                      });
+                    },
+                  )
+                  : _RasterViewer(imagePath: widget.filePath)),
       bottomNavigationBar: _buildBottomBar(context),
     );
   }
 
   Widget _buildTitle(FileManagerController? controller) {
     if (controller == null) {
-      return MiddleEllipsisText(
+      return EllipsizedText(
+        type: EllipsisType.middle,
         p.basename(widget.filePath),
         style: previewTitleStyle(context),
       );
@@ -95,7 +96,11 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
       valueListenable: controller.paginatedEntities,
       builder: (_, __, ___) {
         final title = controller.getDisplayName(File(widget.filePath));
-        return MiddleEllipsisText(title, style: previewTitleStyle(context));
+        return EllipsizedText(
+          type: EllipsisType.middle,
+          title,
+          style: previewTitleStyle(context),
+        );
       },
     );
   }
@@ -107,12 +112,13 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
       theme: MechanixBottomBarThemeData(
         decoration: BoxDecoration(
           color: context.colorScheme.secondaryContainer,
-          borderRadius: !_isEditing
-              ? const BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
-                )
-              : null,
+          borderRadius:
+              !_isEditing
+                  ? const BorderRadius.only(
+                    topLeft: Radius.circular(8),
+                    topRight: Radius.circular(8),
+                  )
+                  : null,
         ),
       ),
       leadingWidget: [
@@ -151,21 +157,23 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
           isSelected: _isEditing,
           iconWidget: IconWidget(
             iconPath: Images.crop,
-            iconColor: isSvg
-                ? context.colorScheme.outline
-                : _isEditing
+            iconColor:
+                isSvg
+                    ? context.colorScheme.outline
+                    : _isEditing
                     ? context.colorScheme.primaryContainer
                     : context.colorScheme.onSurface,
             iconHeight: 28.0,
             iconWidth: 28.0,
           ),
-          onPressed: !isSvg
-              ? () {
-                  setState(() {
-                    _isEditing = !_isEditing;
-                  });
-                }
-              : null,
+          onPressed:
+              !isSvg
+                  ? () {
+                    setState(() {
+                      _isEditing = !_isEditing;
+                    });
+                  }
+                  : null,
         ),
         BottomBarButton.widget(
           widget: IconButton(
@@ -183,13 +191,14 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
         ),
         BottomBarButton.widget(
           widget: IconButton(
-              icon: IconWidget(
-                iconHeight: 28,
-                iconWidth: 28,
-                iconPath: Images.share,
-                iconColor: context.colorScheme.outline,
-              ),
-              onPressed: null),
+            icon: IconWidget(
+              iconHeight: 28,
+              iconWidth: 28,
+              iconPath: Images.share,
+              iconColor: context.colorScheme.outline,
+            ),
+            onPressed: null,
+          ),
         ),
       ],
       anchorWidget: [BottomBarButton.widget(widget: buildActionsMenu(context))],
@@ -202,15 +211,17 @@ class _ImageViewerPageState extends State<ImageViewerPage> {
 
     return MechanixMenu(
       offset: offset,
-      dropdownPosition: DropdownPosition.topRight,
+      dropdownPosition: MenuDropdownPosition.topEnd,
+      dropdownSize: const Size(250, 190),
       animationDuration: const Duration(milliseconds: 100),
       buttonIcon: IconWidget(
         iconPath: Images.dots,
         iconHeight: 28,
         iconWidth: 28,
-        iconColor: isMenuOpen
-            ? context.colorScheme.primaryFixed
-            : context.colorScheme.onSurface,
+        iconColor:
+            isMenuOpen
+                ? context.colorScheme.primaryFixed
+                : context.colorScheme.onSurface,
       ),
       openMenu: () {
         setState(() => isMenuOpen = true);

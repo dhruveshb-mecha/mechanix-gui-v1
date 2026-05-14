@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:ellipsized_text/ellipsized_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_code_editor/flutter_code_editor.dart';
 import 'package:flutter_highlight/themes/monokai.dart';
@@ -17,7 +18,6 @@ import 'package:highlight/languages/sql.dart';
 import 'package:highlight/languages/xml.dart';
 import 'package:highlight/languages/yaml.dart';
 import 'package:mechanix_files/src/commons/constants.dart';
-import 'package:mechanix_files/src/commons/customWidgets/middle_ellipsis_text.dart';
 import 'package:mechanix_files/src/commons/customWidgets/pressable_icon.dart';
 import 'package:mechanix_files/src/controllers/file_manager_controller.dart';
 import 'package:mechanix_files/src/features/files/presentation/commons.dart';
@@ -308,13 +308,14 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
             Padding(
               padding: const EdgeInsets.only(top: 6, left: 16, right: 16),
               child: AppBar(
-                  automaticallyImplyLeading: false,
-                  scrolledUnderElevation: 0,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  title: _buildTitle(controller),
-                  actions: hasMatches
-                      ? [
+                automaticallyImplyLeading: false,
+                scrolledUnderElevation: 0,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                title: _buildTitle(controller),
+                actions:
+                    hasMatches
+                        ? [
                           Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: Center(
@@ -340,7 +341,8 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
                           ),
                           const SizedBox(width: 8),
                         ]
-                      : null),
+                        : null,
+              ),
             ),
 
             /// Divider between AppBar & body
@@ -399,7 +401,8 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
 
   Widget _buildTitle(FileManagerController? controller) {
     if (controller == null) {
-      return MiddleEllipsisText(
+      return EllipsizedText(
+        type: EllipsisType.middle,
         p.basename(widget.filePath),
         style: previewTitleStyle(context),
       );
@@ -409,7 +412,11 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
       valueListenable: controller.paginatedEntities,
       builder: (_, __, ___) {
         final title = controller.getDisplayName(File(widget.filePath));
-        return MiddleEllipsisText(title, style: previewTitleStyle(context));
+        return EllipsizedText(
+          type: EllipsisType.middle,
+          title,
+          style: previewTitleStyle(context),
+        );
       },
     );
   }
@@ -435,18 +442,19 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
                 iconWidth: 28,
                 iconPath: Images.back,
               ),
-              onPressed: !_isFileChanged
-                  ? () => Navigator.pop(context)
-                  : () async {
-                      final confirmed = await _confirmSave(context);
+              onPressed:
+                  !_isFileChanged
+                      ? () => Navigator.pop(context)
+                      : () async {
+                        final confirmed = await _confirmSave(context);
 
-                      if (!confirmed) {
-                        _discardChanges();
-                        return;
-                      }
+                        if (!confirmed) {
+                          _discardChanges();
+                          return;
+                        }
 
-                      await _save();
-                    },
+                        await _save();
+                      },
             ),
           ),
         ),
@@ -484,24 +492,26 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
           widget: MechanixFilledButton(
             theme: buttonThemeData(
               context,
-              type: _isFileChanged
-                  ? MechanixButtonType.action
-                  : MechanixButtonType.disable,
+              type:
+                  _isFileChanged
+                      ? MechanixButtonType.action
+                      : MechanixButtonType.disable,
               size: const Size(94, 40),
             ),
             label: "Save",
-            onPressed: _isFileChanged
-                ? () async {
-                    final confirmed = await _confirmSave(context);
+            onPressed:
+                _isFileChanged
+                    ? () async {
+                      final confirmed = await _confirmSave(context);
 
-                    if (!confirmed) {
-                      _discardChanges();
-                      return;
+                      if (!confirmed) {
+                        _discardChanges();
+                        return;
+                      }
+
+                      await _save();
                     }
-
-                    await _save();
-                  }
-                : null,
+                    : null,
           ),
         ),
         BottomBarButton.widget(widget: buildActionsMenu(context)),
@@ -515,15 +525,17 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
 
     return MechanixMenu(
       offset: offset,
-      dropdownPosition: DropdownPosition.topRight,
+      dropdownPosition: MenuDropdownPosition.topEnd,
+      dropdownSize: const Size(250, 390),
       animationDuration: const Duration(milliseconds: 100),
       buttonIcon: IconWidget(
         iconPath: Images.dots,
         iconHeight: 28,
         iconWidth: 28,
-        iconColor: isMenuOpen
-            ? context.colorScheme.primaryContainer
-            : context.colorScheme.onSurface,
+        iconColor:
+            isMenuOpen
+                ? context.colorScheme.primaryContainer
+                : context.colorScheme.onSurface,
       ),
       openMenu: () {
         setState(() => isMenuOpen = true);
@@ -722,7 +734,8 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
     if (_matchIndexes.isEmpty) return;
 
     setState(() {
-      _currentMatchIndex = (_currentMatchIndex - 1 + _matchIndexes.length) %
+      _currentMatchIndex =
+          (_currentMatchIndex - 1 + _matchIndexes.length) %
           _matchIndexes.length;
     });
 
@@ -736,42 +749,43 @@ class _CodeEditorPageState extends State<CodeEditorPage> {
     _searchOverlayEntry?.remove();
 
     _searchOverlayEntry = OverlayEntry(
-      builder: (_) => Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        child: Material(
-          color: Colors.transparent,
-          child: SizedBox(
-            height: 90,
-            child: MechanixTextInput.search(
-              autofocus: false,
-              hintText: "Search in file",
-              cursorColor: context.colorScheme.primaryContainer,
-              prefixIcon: IconWidget(
-                iconPath: Images.search,
-                iconColor: context.colorScheme.onSurface,
-                iconHeight: 24,
-                iconWidth: 24,
-              ),
-              isClearButtonRequired: false,
-              anchorWidget: Padding(
-                padding: const EdgeInsets.only(left: 5),
-                child: DecoratedPressableIcon(
-                  onTap: () {
-                    _clearSearch();
-                  },
-                  tapBackgroundColor:
-                      context.colorScheme.surfaceContainer.withAlpha(100),
-                  icon: const Icon(Icons.close),
+      builder:
+          (_) => Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Material(
+              color: Colors.transparent,
+              child: SizedBox(
+                height: 90,
+                child: MechanixTextInput.search(
+                  autofocus: false,
+                  hintText: "Search in file",
+                  cursorColor: context.colorScheme.primaryContainer,
+                  prefixIcon: IconWidget(
+                    iconPath: Images.search,
+                    iconColor: context.colorScheme.onSurface,
+                    iconHeight: 24,
+                    iconWidth: 24,
+                  ),
+                  isClearButtonRequired: false,
+                  anchorWidget: Padding(
+                    padding: const EdgeInsets.only(left: 5),
+                    child: DecoratedPressableIcon(
+                      onTap: () {
+                        _clearSearch();
+                      },
+                      tapBackgroundColor: context.colorScheme.surfaceContainer
+                          .withAlpha(100),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ),
+                  onChanged: _onSearchChanged,
+                  onClear: _clearSearch,
                 ),
               ),
-              onChanged: _onSearchChanged,
-              onClear: _clearSearch,
             ),
           ),
-        ),
-      ),
     );
 
     overlay.insert(_searchOverlayEntry!);

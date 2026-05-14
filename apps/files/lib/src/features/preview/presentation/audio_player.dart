@@ -1,8 +1,7 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:ellipsized_text/ellipsized_text.dart';
 import 'package:flutter/material.dart';
-import 'package:mechanix_files/src/commons/customWidgets/middle_ellipsis_text.dart';
-import 'package:mechanix_files/src/commons/customWidgets/pressable_icon.dart';
 import 'package:mechanix_files/src/features/files/presentation/commons.dart';
 import 'package:mechanix_files/src/features/files/presentation/files.dart';
 import 'package:mechanix_files/src/services/media_kit_manager.dart';
@@ -55,7 +54,6 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
   Future<void> _initializePlayer() async {
     await MediaKitManager.init();
     player = Player();
-    await player.open(Media(widget.filePath));
 
     // Get actual volume from the player
     _lastVolume = player.state.volume;
@@ -72,7 +70,14 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
       if (mounted) setState(() => _duration = dur);
     });
 
-    if (mounted) setState(() => _playerReady = true);
+    if (mounted) {
+      setState(() => _playerReady = true);
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await player.open(Media(widget.filePath), play: true);
+    });
   }
 
   @override
@@ -90,9 +95,10 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
 
     final controller = explorerState?.controller;
 
-    final title = controller != null
-        ? controller.getDisplayName(File(widget.filePath))
-        : p.basename(widget.filePath);
+    final title =
+        controller != null
+            ? controller.getDisplayName(File(widget.filePath))
+            : p.basename(widget.filePath);
 
     return Scaffold(
       appBar: PreferredSize(
@@ -107,7 +113,11 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
           child: AppBar(
             automaticallyImplyLeading: false,
             scrolledUnderElevation: 0,
-            title: MiddleEllipsisText(title, style: previewTitleStyle(context)),
+            title: EllipsizedText(
+              type: EllipsisType.middle,
+              title,
+              style: previewTitleStyle(context),
+            ),
             backgroundColor: Colors.transparent,
             elevation: 0,
           ),
@@ -128,14 +138,15 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
           ),
         ),
       ),
-      bottomNavigationBar: _playerReady
-          ? _buildBottomBar(context)
-          : Padding(
-              padding: const EdgeInsets.all(20),
-              child: CircularProgressIndicator(
-                color: context.colorScheme.primaryContainer,
+      bottomNavigationBar:
+          _playerReady
+              ? _buildBottomBar(context)
+              : Padding(
+                padding: const EdgeInsets.all(20),
+                child: CircularProgressIndicator(
+                  color: context.colorScheme.primaryContainer,
+                ),
               ),
-            ),
     );
   }
 
@@ -188,13 +199,13 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
                         child: Slider(
                           min: 0,
                           max: _duration.inMilliseconds.toDouble().clamp(
-                                1,
-                                double.infinity,
-                              ),
+                            1,
+                            double.infinity,
+                          ),
                           value: _position.inMilliseconds.toDouble().clamp(
-                                0,
-                                _duration.inMilliseconds.toDouble(),
-                              ),
+                            0,
+                            _duration.inMilliseconds.toDouble(),
+                          ),
                           activeColor: context.colorScheme.primaryContainer,
                           inactiveColor: context.colorScheme.surfaceContainer,
                           thumbColor: context.colorScheme.onSurface,
@@ -256,12 +267,13 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
                 widget: Padding(
                   padding: const EdgeInsets.only(left: 8),
                   child: IconButton(
-                      icon: const IconWidget(
-                        iconHeight: 28,
-                        iconWidth: 28,
-                        iconPath: Images.back,
-                      ),
-                      onPressed: () => Navigator.pop(context)),
+                    icon: const IconWidget(
+                      iconHeight: 28,
+                      iconWidth: 28,
+                      iconPath: Images.back,
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                  ),
                 ),
               ),
             ],
@@ -296,13 +308,14 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
               ),
               BottomBarButton.widget(
                 widget: IconButton(
-                    icon: IconWidget(
-                      iconHeight: 28,
-                      iconWidth: 28,
-                      iconPath: Images.share,
-                      iconColor: context.colorScheme.outline,
-                    ),
-                    onPressed: null),
+                  icon: IconWidget(
+                    iconHeight: 28,
+                    iconWidth: 28,
+                    iconPath: Images.share,
+                    iconColor: context.colorScheme.outline,
+                  ),
+                  onPressed: null,
+                ),
               ),
             ],
             anchorWidget: [
@@ -320,15 +333,17 @@ class _AudioPlayerOverlayState extends State<AudioPlayerOverlay> {
 
     return MechanixMenu(
       offset: offset,
-      dropdownPosition: DropdownPosition.topRight,
+      dropdownPosition: MenuDropdownPosition.topEnd,
+      dropdownSize: const Size(250, 190),
       animationDuration: const Duration(milliseconds: 100),
       buttonIcon: IconWidget(
         iconPath: Images.dots,
         iconWidth: 28,
         iconHeight: 28,
-        iconColor: isMenuOpen
-            ? context.colorScheme.primaryContainer
-            : context.colorScheme.onSurface,
+        iconColor:
+            isMenuOpen
+                ? context.colorScheme.primaryContainer
+                : context.colorScheme.onSurface,
       ),
       openMenu: () {
         setState(() => isMenuOpen = true);

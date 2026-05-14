@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io' show FileSystemEntity, File;
 
+import 'package:ellipsized_text/ellipsized_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mechanix_files/src/commons/constants.dart';
-import 'package:mechanix_files/src/commons/customWidgets/middle_ellipsis_text.dart';
 import 'package:mechanix_files/src/commons/customWidgets/pressable_icon.dart';
 import 'package:mechanix_files/src/controllers/file_manager_controller.dart';
 import 'package:mechanix_files/src/features/files/presentation/commons.dart';
@@ -58,6 +58,9 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
   void initState() {
     super.initState();
 
+    // Set the path to the PDFium native library
+    Pdfrx.pdfiumModulePath = AppPaths.pdfiumModulePath;
+
     // Initialize text searcher and listen for changes in search results
     _searcher = PdfTextSearcher(_controller);
     _searcher.addListener(() {
@@ -66,15 +69,12 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
         matches = _searcher.matches;
       });
     });
-
-    // _controller.addListener(_onPageChanged);
   }
 
   @override
   void dispose() {
     _hideBubbleTimer?.cancel();
     _pageBubbleOverlay?.remove();
-    // _controller.removeListener(_onPageChanged);
 
     _searcher.dispose();
     super.dispose();
@@ -147,7 +147,8 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
                             Navigator.of(bottomSheetContext).pop();
                           },
                           tapBackgroundColor: context
-                              .colorScheme.surfaceContainer
+                              .colorScheme
+                              .surfaceContainer
                               .withAlpha(100),
                         ),
                       ),
@@ -226,20 +227,6 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     );
   }
 
-  void _onPageChanged() {
-    final page = _controller.pageNumber;
-    final count = _controller.pageCount ?? 0;
-
-    if (page == null || page == _currentPage) return;
-
-    setState(() {
-      _currentPage = page;
-      _pageCount = count;
-    });
-
-    _showPageBubble();
-  }
-
   void _showPageBubble() {
     _pageBubbleOverlay?.remove();
 
@@ -247,38 +234,39 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     if (overlay == null) return;
 
     _pageBubbleOverlay = OverlayEntry(
-      builder: (_) => Positioned(
-        bottom: 95, // above bottom bar
-        left: 0,
-        right: 0,
-        child: IgnorePointer(
-          child: Center(
-            child: AnimatedOpacity(
-              opacity: 1,
-              duration: const Duration(milliseconds: 150),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: context.colorScheme.surface.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'Page $_currentPage of $_pageCount',
-                  style: TextStyle(
-                    color: context.colorScheme.onSurface,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    decoration: TextDecoration.none,
+      builder:
+          (_) => Positioned(
+            bottom: 95, // above bottom bar
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Center(
+                child: AnimatedOpacity(
+                  opacity: 1,
+                  duration: const Duration(milliseconds: 150),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: context.colorScheme.surface.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Page $_currentPage of $_pageCount',
+                      style: TextStyle(
+                        color: context.colorScheme.onSurface,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
     );
 
     overlay.insert(_pageBubbleOverlay!);
@@ -314,40 +302,41 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           title: _buildTitle(controller),
           backgroundColor: Colors.transparent,
           elevation: 0,
-          actions: hasMatches
-              ? [
-                  // Match counter
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Center(
-                      child: Text(
-                        hasMatches
-                            ? '${index + 1} of ${matches.length}'
-                            : '0 of 0',
-                        style: TextStyle(
-                          color: context.colorScheme.onSurfaceVariant,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
+          actions:
+              hasMatches
+                  ? [
+                    // Match counter
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Center(
+                        child: Text(
+                          hasMatches
+                              ? '${index + 1} of ${matches.length}'
+                              : '0 of 0',
+                          style: TextStyle(
+                            color: context.colorScheme.onSurfaceVariant,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),
-                  ),
 
-                  searchNavButton(
-                    icon: Icons.keyboard_arrow_up,
-                    onTap: canNavPrev ? _prevMatch : null,
-                    context: context,
-                  ),
+                    searchNavButton(
+                      icon: Icons.keyboard_arrow_up,
+                      onTap: canNavPrev ? _prevMatch : null,
+                      context: context,
+                    ),
 
-                  searchNavButton(
-                    icon: Icons.keyboard_arrow_down,
-                    onTap: canNavNext ? _nextMatch : null,
-                    context: context,
-                  ),
+                    searchNavButton(
+                      icon: Icons.keyboard_arrow_down,
+                      onTap: canNavNext ? _nextMatch : null,
+                      context: context,
+                    ),
 
-                  const SizedBox(width: 8),
-                ]
-              : null,
+                    const SizedBox(width: 8),
+                  ]
+                  : null,
         ),
       ),
     );
@@ -355,7 +344,8 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
 
   Widget _buildTitle(FileManagerController? controller) {
     if (controller == null) {
-      return MiddleEllipsisText(
+      return EllipsizedText(
+        type: EllipsisType.middle,
         p.basename(widget.filePath),
         style: previewTitleStyle(context),
       );
@@ -365,7 +355,11 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
       valueListenable: controller.paginatedEntities,
       builder: (_, __, ___) {
         final title = controller.getDisplayName(File(widget.filePath));
-        return MiddleEllipsisText(title, style: previewTitleStyle(context));
+        return EllipsizedText(
+          type: EllipsisType.middle,
+          title,
+          style: previewTitleStyle(context),
+        );
       },
     );
   }
@@ -388,12 +382,13 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
           widget: Padding(
             padding: const EdgeInsets.only(left: 8),
             child: IconButton(
-                icon: const IconWidget(
-                  iconHeight: 28,
-                  iconWidth: 28,
-                  iconPath: Images.back,
-                ),
-                onPressed: () => Navigator.pop(context)),
+              icon: const IconWidget(
+                iconHeight: 28,
+                iconWidth: 28,
+                iconPath: Images.back,
+              ),
+              onPressed: () => Navigator.pop(context),
+            ),
           ),
         ),
       ],
@@ -440,13 +435,14 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
         ),
         BottomBarButton.widget(
           widget: IconButton(
-              icon: IconWidget(
-                iconHeight: 28,
-                iconWidth: 28,
-                iconPath: Images.share,
-                iconColor: context.colorScheme.outline,
-              ),
-              onPressed: null),
+            icon: IconWidget(
+              iconHeight: 28,
+              iconWidth: 28,
+              iconPath: Images.share,
+              iconColor: context.colorScheme.outline,
+            ),
+            onPressed: null,
+          ),
         ),
       ],
       anchorWidget: [BottomBarButton.widget(widget: buildActionsMenu(context))],
@@ -459,15 +455,17 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
 
     return MechanixMenu(
       offset: offset,
-      dropdownPosition: DropdownPosition.topRight,
+      dropdownPosition: MenuDropdownPosition.topEnd,
+      dropdownSize: const Size(250, 190),
       animationDuration: const Duration(milliseconds: 100),
       buttonIcon: IconWidget(
         iconPath: Images.dots,
         iconWidth: 28,
         iconHeight: 28,
-        iconColor: isMenuOpen
-            ? context.colorScheme.primaryFixed
-            : context.colorScheme.onSurface,
+        iconColor:
+            isMenuOpen
+                ? context.colorScheme.primaryFixed
+                : context.colorScheme.onSurface,
       ),
       openMenu: () {
         setState(() => isMenuOpen = true);
@@ -532,42 +530,43 @@ class _PdfViewerPageState extends State<PdfViewerPage> {
     _searchOverlayEntry?.remove();
 
     _searchOverlayEntry = OverlayEntry(
-      builder: (ctx) => Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        child: Material(
-          color: Colors.transparent,
-          child: SizedBox(
-            height: 90,
-            child: MechanixTextInput.search(
-              cursorColor: context.colorScheme.primaryFixed,
-              autofocus: false,
-              prefixIcon: IconWidget(
-                iconPath: Images.search,
-                iconColor: context.colorScheme.onSurface,
-                iconHeight: 24,
-                iconWidth: 24,
-              ),
-              isClearButtonRequired: false,
-              anchorWidget: Padding(
-                padding: const EdgeInsets.only(left: 5),
-                child: DecoratedPressableIcon(
-                  onTap: () {
-                    _clearPdfSearch();
-                  },
-                  tapBackgroundColor:
-                      context.colorScheme.surfaceContainer.withAlpha(100),
-                  icon: const Icon(Icons.close),
+      builder:
+          (ctx) => Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Material(
+              color: Colors.transparent,
+              child: SizedBox(
+                height: 90,
+                child: MechanixTextInput.search(
+                  cursorColor: context.colorScheme.primaryFixed,
+                  autofocus: false,
+                  prefixIcon: IconWidget(
+                    iconPath: Images.search,
+                    iconColor: context.colorScheme.onSurface,
+                    iconHeight: 24,
+                    iconWidth: 24,
+                  ),
+                  isClearButtonRequired: false,
+                  anchorWidget: Padding(
+                    padding: const EdgeInsets.only(left: 5),
+                    child: DecoratedPressableIcon(
+                      onTap: () {
+                        _clearPdfSearch();
+                      },
+                      tapBackgroundColor: context.colorScheme.surfaceContainer
+                          .withAlpha(100),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ),
+                  hintText: "Search in PDF",
+                  onChanged: _onPdfSearchChanged,
+                  onClear: _clearPdfSearch,
                 ),
               ),
-              hintText: "Search in PDF",
-              onChanged: _onPdfSearchChanged,
-              onClear: _clearPdfSearch,
             ),
           ),
-        ),
-      ),
     );
 
     overlay.insert(_searchOverlayEntry!);

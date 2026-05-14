@@ -1,11 +1,25 @@
+import 'package:audioplayers/audioplayers.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:mechanix_camera/db/camera_config.dart';
+import 'package:mechanix_camera/src/bloc/camera_bloc.dart';
+import 'package:mechanix_camera/src/bloc/camera_event.dart';
+import 'package:mechanix_camera/src/bloc/camera_state.dart';
 import 'package:mechanix_camera/src/home/bottom_actions.dart';
+import 'package:mechanix_camera/src/home/bottom_settings.dart';
+import 'package:mechanix_camera/src/home/camera_view.dart';
 import 'package:mechanix_camera/src/home/capture_button.dart';
 import 'package:mechanix_camera/src/home/circle_overlay_painter.dart';
-import 'package:mechanix_camera/src/home/circular_frame_painter.dart';
+import 'package:mechanix_camera/src/home/widgets/capture_with_overlay.dart';
+import 'package:mechanix_camera/src/home/widgets/center_dot_painter.dart';
+import 'package:mechanix_camera/src/home/widgets/countdown_overlay.dart';
+import 'package:mechanix_camera/src/home/widgets/timer_label.dart';
+import 'package:mechanix_camera/src/home/widgets/video_bottom_actions.dart';
+import 'package:mechanix_camera/src/home/widgets/video_timer.dart';
 import 'package:mechanix_camera/src/home/zoom_strips.dart';
-
-import 'package:mechanix_camera/utils/icons/icon.dart';
+import 'package:mechanix_camera/utils/constants.dart';
+import 'package:mechanix_camera/utils/icons/sounds.dart';
 import 'package:widgets/mechanix.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -15,17 +29,222 @@ class CameraScreen extends StatefulWidget {
   State<CameraScreen> createState() => _CameraScreenState();
 }
 
-class _CameraScreenState extends State<CameraScreen> {
+class _CameraScreenState extends State<CameraScreen>
+    with WidgetsBindingObserver {
+  CameraController? _cameraController;
+  List<CameraDescription>? _cameras;
+  bool _isCameraInitialized = false;
+  bool _showCountdown = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  final GlobalKey<CaptureFlashOverlayState> _flashKey =
+      GlobalKey<CaptureFlashOverlayState>();
+
   final ValueNotifier<double> _zoomLevel = ValueNotifier<double>(1.0);
   final ValueNotifier<bool> _isRecording = ValueNotifier<bool>(false);
   final ValueNotifier<double> _captureButtonOffset = ValueNotifier<double>(0.0);
 
+  double _minZoomLevel = 1.0;
+  double _maxZoomLevel = 1.0;
+  final int _currentCameraIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _requestPermissionsAndInitialize();
+  }
+
+  Future<void> _requestPermissionsAndInitialize() async {
+    await _initializeCamera();
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _disposeCamera();
+    _audioPlayer.dispose();
     _zoomLevel.dispose();
     _isRecording.dispose();
     _captureButtonOffset.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final CameraController? cameraController = _cameraController;
+
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      _disposeCamera();
+    } else if (state == AppLifecycleState.resumed) {
+      _initializeCamera();
+    }
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    _disposeCamera();
+    _requestPermissionsAndInitialize();
+  }
+
+  Future<void> _disposeCamera() async {
+    if (_cameraController != null) {
+      if (_cameraController!.value.isRecordingVideo) {
+        try {
+          await _cameraController!.stopVideoRecording();
+          _isRecording.value = false;
+        } catch (e) {
+          debugPrint('Error stopping recording during disposal: $e');
+        }
+      }
+
+      await _cameraController!.dispose();
+      _cameraController = null;
+
+      if (mounted) {
+        setState(() => _isCameraInitialized = false);
+      }
+    }
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      _cameras = await availableCameras();
+      if (_cameras == null || _cameras!.isEmpty) {
+        debugPrint('No cameras available');
+        return;
+      }
+
+      await _setupCamera(_cameras![_currentCameraIndex]);
+    } catch (e) {
+      debugPrint('Error initializing camera: $e');
+    }
+  }
+
+  Future<void> _setupCamera(CameraDescription cameraDescription) async {
+    await _disposeCamera();
+
+    final CameraController cameraController = CameraController(
+      cameraDescription,
+      ResolutionPreset.low,
+      enableAudio: true,
+      imageFormatGroup: ImageFormatGroup.jpeg,
+    );
+    _cameraController = cameraController;
+
+    try {
+      await cameraController.initialize();
+      _maxZoomLevel = await cameraController.getMaxZoomLevel();
+      _minZoomLevel = await cameraController.getMinZoomLevel();
+      await cameraController.setZoomLevel(_zoomLevel.value);
+
+      if (mounted) {
+        setState(() => _isCameraInitialized = true);
+      }
+    } catch (e) {
+      debugPrint('Error setting up camera: $e');
+      if (mounted) {
+        setState(() => _isCameraInitialized = false);
+      }
+    }
+  }
+
+  Future<void> _updateZoom(double zoom) async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    final clampedZoom = zoom.clamp(_minZoomLevel, _maxZoomLevel);
+    _zoomLevel.value = clampedZoom;
+    try {
+      await _cameraController!.setZoomLevel(clampedZoom);
+    } catch (e) {
+      debugPrint('Error setting zoom level: $e');
+    }
+  }
+
+  void _onCapturePressed() {
+    final timerValue = context.read<CameraBloc>().state.timer.seconds;
+
+    if (timerValue > 0) {
+      setState(() => _showCountdown = true);
+    } else {
+      _takePicture();
+    }
+  }
+
+  void _onCountdownComplete() {
+    setState(() => _showCountdown = false);
+    _takePicture();
+  }
+
+  Future<void> _takePicture() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+    try {
+      _flashKey.currentState?.flash();
+
+      // Play shutter sound
+      if (mounted &&
+          context.read<CameraBloc>().state.soundMode == SoundMode.on) {
+        await _audioPlayer.play(AssetSource(CameraSounds.shutterSound));
+      }
+
+      final path = '${Constants.imageStorePath}${DateTime.now()}.jpg';
+      final XFile picture = await _cameraController!.takePicture();
+
+      await picture.saveTo(path);
+      if (mounted) {
+        context.read<CameraBloc>().add(UpdateMediaPath(path));
+      }
+      debugPrint('Picture saved to: $path');
+    } catch (e) {
+      debugPrint('Error taking picture: $e');
+    }
+  }
+
+  Future<void> _startVideoRecording() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    try {
+      await _cameraController!.startVideoRecording();
+      _isRecording.value = true;
+    } catch (e) {
+      debugPrint('Error starting video recording: $e');
+    }
+  }
+
+  Future<void> _stopVideoRecording() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      return;
+    }
+
+    if (!_cameraController!.value.isRecordingVideo) return;
+
+    try {
+      final path = '${Constants.videoStorePath}${DateTime.now()}.mp4';
+      final XFile video = await _cameraController!.stopVideoRecording();
+      _isRecording.value = false;
+      await video.saveTo(path);
+      if (mounted) {
+        context.read<CameraBloc>().add(UpdateMediaPath(path));
+      }
+      debugPrint('Video saved to: $path');
+    } catch (e) {
+      debugPrint('Error stopping video recording: $e');
+      _isRecording.value = false;
+    }
+  }
+
+  void _cancelCountdown() {
+    setState(() => _showCountdown = false);
   }
 
   @override
@@ -34,80 +253,133 @@ class _CameraScreenState extends State<CameraScreen> {
     final circleSize = screenWidth * 0.89;
 
     return Scaffold(
-      body: Stack(
-        children: [
-          // Background Image
-          Positioned.fill(
-            child: Image.asset(
-              CameraIcons.demoImage,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Colors.grey[800]!, Colors.grey[900]!],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          // Bottom Action Buttons
-          const BottomActions(),
-          // Dark overlay outside circle (when zooming)
-          ValueListenableBuilder<double>(
-            valueListenable: _captureButtonOffset,
-            builder: (context, offset, child) {
-              if (offset == 0.0) return const SizedBox.shrink();
-              return Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: CircleOverlayPainter(
-                      colorScheme: context.colorScheme,
-                      circleSize: circleSize,
-                      screenSize: MediaQuery.of(context).size,
-                    ),
+      body: BlocSelector<CameraBloc, CameraState, bool>(
+        selector: (state) => state.isSettingsOpen,
+        builder:
+            (context, isSettingsOpen) => Stack(
+              children: [
+                // Camera Preview
+                Positioned.fill(
+                  child: CameraView(
+                    isCameraInitialized: _isCameraInitialized,
+                    cameraController: _cameraController,
                   ),
                 ),
-              );
-            },
-          ),
-          // Circular UI Overlay
-          Center(
-            child: CustomPaint(
-              size: Size(circleSize, circleSize),
-              painter: CircularFramePainter(colorScheme: context.colorScheme),
+
+                if (!isSettingsOpen) ...[
+                  if (!_showCountdown)
+                    // Bottom Actions
+                    ValueListenableBuilder(
+                      valueListenable: _isRecording,
+                      builder: (context, value, child) {
+                        if (value) {
+                          return VideoBottomActions(
+                            cameraController: _cameraController,
+                          );
+                        }
+                        return const BottomActions();
+                      },
+                    ),
+
+                  // Dark overlay outside circle (when zooming)
+                  ValueListenableBuilder<double>(
+                    valueListenable: _captureButtonOffset,
+                    builder: (context, offset, child) {
+                      if (offset == 0.0) return const SizedBox.shrink();
+                      return Positioned.fill(
+                        child: IgnorePointer(
+                          child: CustomPaint(
+                            painter: CircleOverlayPainter(
+                              colorScheme: context.colorScheme,
+                              circleSize: circleSize,
+                              screenSize: MediaQuery.of(context).size,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  // Video recording timer
+                  ValueListenableBuilder(
+                    valueListenable: _isRecording,
+                    builder:
+                        (context, value, child) =>
+                            value
+                                ? const Positioned(
+                                  top: 15,
+                                  left: 0,
+                                  right: 0,
+                                  child: Center(child: VideoTimer()),
+                                )
+                                : const SizedBox.shrink(),
+                  ),
+
+                  // Capture Button with Drag Control
+                  CaptureButton(
+                    isCountingDown: _showCountdown,
+                    onCancelCountdown: _cancelCountdown,
+                    zoomLevel: _zoomLevel,
+                    isRecording: _isRecording,
+                    captureButtonOffset: _captureButtonOffset,
+                    onCapture: _onCapturePressed,
+                    onStartRecording: _startVideoRecording,
+                    onStopRecording: _stopVideoRecording,
+                    onZoomChange: _updateZoom,
+                    minZoom: _minZoomLevel,
+                    maxZoom: _maxZoomLevel,
+                  ),
+
+                  // Zoom Strips Overlay
+                  ValueListenableBuilder<double>(
+                    valueListenable: _captureButtonOffset,
+                    builder: (context, offset, child) {
+                      if (offset == 0.0) return const SizedBox.shrink();
+                      return Center(
+                        child: ValueListenableBuilder<double>(
+                          valueListenable: _zoomLevel,
+                          builder: (context, zoom, child) {
+                            return CustomPaint(
+                              size: Size(circleSize, circleSize),
+                              painter: ZoomStrips(
+                                activeColor:
+                                    context.colorScheme.primaryFixedDim,
+                                stripsColor:
+                                    context.colorScheme.onTertiaryFixed,
+                                zoomLevel: zoom >= 2.0 ? 2.0 : zoom,
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ] else
+                  const BottomSettings(),
+
+                // Center Circle Dot
+                if (!_showCountdown)
+                  Center(
+                    child: CustomPaint(
+                      painter: CenterDotPainter(
+                        colorScheme: context.colorScheme,
+                      ),
+                    ),
+                  ),
+
+                // Countdown Overlay — sits on top of everything
+                if (!isSettingsOpen) const TimerLabel(),
+
+                // Flash Overlay
+                CaptureFlashOverlay(key: _flashKey),
+
+                if (_showCountdown)
+                  CountdownOverlay(
+                    seconds: context.read<CameraBloc>().state.timer.seconds,
+                    onComplete: _onCountdownComplete,
+                  ),
+              ],
             ),
-          ),
-
-          // Capture Button with Drag Control
-          CaptureButton(
-            zoomLevel: _zoomLevel,
-            isRecording: _isRecording,
-            captureButtonOffset: _captureButtonOffset,
-          ),
-
-          // Zoom Strips Overlay (separate layer)
-          ValueListenableBuilder<double>(
-            valueListenable: _captureButtonOffset,
-            builder: (context, offset, child) {
-              if (offset == 0.0) return const SizedBox.shrink();
-              return Center(
-                child: ValueListenableBuilder<double>(
-                  valueListenable: _zoomLevel,
-                  builder: (context, zoom, child) {
-                    return CustomPaint(
-                      size: Size(circleSize, circleSize),
-                      painter: ZoomStrips(zoomLevel: zoom),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-        ],
       ),
     );
   }
