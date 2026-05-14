@@ -234,7 +234,7 @@ jobs:
       - name: Configure Pulp CLI
         run: |
           set -euo pipefail
-          PULP_API_URL="${MECHA_PULP_API_URL}:8080"
+          PULP_API_URL="${MECHA_PULP_API_URL}"
           pulp config create \
             --username "$MECHA_PULP_USERNAME" \
             --password "$MECHA_PULP_PASSWORD" \
@@ -255,6 +255,7 @@ jobs:
 
       - name: Publish DEB
         if: steps.check_publish.outputs.should_publish == 'true'
+        continue-on-error: true
         run: |
           DEB_FILE=$(find ./build/deb -name "mechanix-${{ matrix.app }}*.deb" -type f | head -n1)
           echo "[INFO] 📦 Publishing DEB: $DEB_FILE"
@@ -272,6 +273,7 @@ jobs:
 
       - name: Publish RPM
         if: steps.check_publish.outputs.should_publish == 'true'
+        continue-on-error: true
         run: |
           RPM_FILE=$(find ./build/rpm -name "mechanix-${{ matrix.app }}*.rpm" -type f | head -n1)
           echo "[INFO] 📦 Publishing RPM: $RPM_FILE"
@@ -287,6 +289,7 @@ jobs:
             --publication="$PUB_HREF"
 
       - name: Upload Artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.binary }}
